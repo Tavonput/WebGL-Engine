@@ -1,5 +1,5 @@
 # WebGL-Engine
-WebGl Rendering Engine.
+WebGL Rendering Engine.
 
 ## Get Started
 Clone the repository, then open a terminal in the root directory of the repository (the directory that has main.html). Run `python -m http.server`.
