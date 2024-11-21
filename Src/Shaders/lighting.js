@@ -1,7 +1,7 @@
 // ========================================================================================================================
 // Vertex Shader
 //
-export const vertexShaderSource =
+export const vertSource =
 `   #version 300 es
     precision mediump float;
 
@@ -36,7 +36,7 @@ export const vertexShaderSource =
 // ========================================================================================================================
 // Fragment Shader
 //
-export const fragmentShaderSource = 
+export const fragSource = 
 `   #version 300 es
     precision mediump float;
 

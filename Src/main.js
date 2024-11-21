@@ -4,8 +4,10 @@ import { Mat4 } from "./Math/matrix.js";
 import { Mesh } from "./Core/mesh.js";
 import { Keys } from "./Core/event.js";
 import { Texture } from "./Core/texture.js";
+import { FrameBuffer } from "./Core/framebuffer.js";
 
-import { vertexShaderSource, fragmentShaderSource } from "./shader_source.js";
+import { vertSource, fragSource } from "./Shaders/lighting.js";
+import { postVertSource, postFragSource } from "./Shaders/post.js";
 
 // ========================================================================================================================
 // Main
@@ -16,13 +18,18 @@ function main() {
 
     let keyboard = Keys.startListening();
 
-    let shaderProgram = new ShaderProgram(gl, vertexShaderSource, fragmentShaderSource);
+    let offscreenShader = new ShaderProgram(gl, vertSource, fragSource);
+    let postShader = new ShaderProgram(gl, postVertSource, postFragSource);
 
     let mesh = Mesh.sphere(gl, 16);
     let sphere = mesh.createInstance();
     sphere.scale = Mat4.scale(0.5, 0.5, 0.5); 
 
-    let texture = new Texture(gl, "../Assets/metal_scale.png");
+    let metalTexture = Texture.createFromFile(gl, "../Assets/metal_scale.png");
+
+    let framebuffer = new FrameBuffer(gl, canvas.width, canvas.height);
+    let offscreenAlbedo = framebuffer.addColorAttachment();
+    let offscreenDepth = framebuffer.addDepthAttachment();
 
     // ==========
     /** 
@@ -31,26 +38,30 @@ function main() {
      * @param {Renderer} renderer  
      */
     function onInit(renderer) {
-        shaderProgram.bind(gl);
-        shaderProgram.setUniformMat4f(gl, "projection", renderer.camera.projection.data);
-        shaderProgram.setUniformMat4f(gl, "view", renderer.camera.getView().data);
-        shaderProgram.setUniformInt(gl, "debugMode", Renderer.DEBUG_NONE);
+        offscreenShader.bind(gl);
+        offscreenShader.setUniformMat4f(gl, "projection", renderer.camera.projection.data);
+        offscreenShader.setUniformMat4f(gl, "view", renderer.camera.getView().data);
+        offscreenShader.setUniformInt(gl, "debugMode", Renderer.DEBUG_NONE);
 
-        shaderProgram.setUniformVec3f(gl, "cameraPos",
+        offscreenShader.setUniformVec3f(gl, "cameraPos",
             renderer.camera.position[0], renderer.camera.position[1], renderer.camera.position[2]
         );
 
-        shaderProgram.setUniformFloat(gl, "matAmbient", 0.25);
-        shaderProgram.setUniformFloat(gl, "matDiffuse", 1.0);
-        shaderProgram.setUniformFloat(gl, "matSpecular", 2.0);
-        shaderProgram.setUniformFloat(gl, "matShininess", 4.0);
+        offscreenShader.setUniformFloat(gl, "matAmbient", 0.25);
+        offscreenShader.setUniformFloat(gl, "matDiffuse", 1.0);
+        offscreenShader.setUniformFloat(gl, "matSpecular", 2.0);
+        offscreenShader.setUniformFloat(gl, "matShininess", 4.0);
 
-        shaderProgram.setUniformVec3f(gl, "lightPos", -1.0, -1.0, -1.0);
-        shaderProgram.setUniformVec3f(gl, "lightColor", 1.0, 0.0, 0.0);
-        shaderProgram.setUniformFloat(gl, "lightIntensity", 0.5);
+        offscreenShader.setUniformVec3f(gl, "lightPos", -1.0, -1.0, -1.0);
+        offscreenShader.setUniformVec3f(gl, "lightColor", 1.0, 0.0, 0.0);
+        offscreenShader.setUniformFloat(gl, "lightIntensity", 0.5);
 
-        shaderProgram.setUniformVec3f(gl, "sunDir", 1.0, 1.0, 0.0);
-        shaderProgram.setUniformVec3f(gl, "sunColor", 1.0, 1.0, 1.0);
+        offscreenShader.setUniformVec3f(gl, "sunDir", 1.0, 1.0, 0.0);
+        offscreenShader.setUniformVec3f(gl, "sunColor", 1.0, 1.0, 1.0);
+
+        postShader.bind(gl);
+        postShader.setUniformInt(gl, "albedoTexture", 0);
+        postShader.setUniformInt(gl, "depthTexture", 1);
     }
 
     /**
@@ -59,7 +70,24 @@ function main() {
      * @param {Renderer} renderer 
      */
     function onRender(renderer) {
-        sphere.draw(gl, shaderProgram);
+        // Offscreen pass
+        framebuffer.bind();
+            renderer.setClearColor(0.2, 0.2, 0.2, 1.0);
+            renderer.clearRenderTargets();
+            renderer.enableDepthTesting();
+
+            metalTexture.bind(gl, 0);
+            sphere.draw(gl, offscreenShader);
+        framebuffer.unbind();
+
+        // Post processing pass
+        postShader.bind(gl);
+        renderer.clearRenderTargets();
+        renderer.disableDepthTesting();
+
+        offscreenAlbedo.bind(gl, 0);
+        offscreenDepth.bind(gl, 1);
+        renderer.drawFullScreenQuad();
     }
     
     /** 
@@ -70,13 +98,13 @@ function main() {
     function onUpdate(renderer) {
         renderer.updateCamera(keyboard);
 
-        shaderProgram.bind(gl);
-        shaderProgram.setUniformVec3f(gl, "cameraPos",
+        offscreenShader.bind(gl);
+        offscreenShader.setUniformVec3f(gl, "cameraPos",
             renderer.camera.position[0], renderer.camera.position[1], renderer.camera.position[2]
         );
 
-        shaderProgram.bind(gl);
-        shaderProgram.setUniformMat4f(gl, "view", renderer.camera.getView().data);
+        offscreenShader.bind(gl);
+        offscreenShader.setUniformMat4f(gl, "view", renderer.camera.getView().data);
     }
     // ==========
 

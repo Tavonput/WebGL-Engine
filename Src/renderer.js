@@ -132,6 +132,26 @@ export class Renderer {
         this.camera.updateOrientation(dr, dp, dyw);
     }
 
+    drawFullScreenQuad() {
+        this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
+    }
+
+    setClearColor(r, g, b, a) {
+        this.gl.clearColor(r, g, b, a);
+    }
+
+    clearRenderTargets() {
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+    }
+
+    enableDepthTesting() {
+        this.gl.enable(this.gl.DEPTH_TEST);
+    }
+
+    disableDepthTesting() {
+        this.gl.disable(this.gl.DEPTH_TEST);
+    }
+
     /**
      * Initialize the rendering parameters and clear the buffers.
      */
