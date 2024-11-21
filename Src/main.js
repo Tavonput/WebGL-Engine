@@ -8,6 +8,7 @@ import { FrameBuffer } from "./Core/framebuffer.js";
 
 import { vertSource, fragSource } from "./Shaders/lighting.js";
 import { postVertSource, postFragSource } from "./Shaders/post.js";
+import { edgeDetectionFragSource } from "./Shaders/edge_detection.js";
 
 // ========================================================================================================================
 // Main
@@ -19,11 +20,17 @@ function main() {
     let keyboard = Keys.startListening();
 
     let offscreenShader = new ShaderProgram(gl, vertSource, fragSource);
-    let postShader = new ShaderProgram(gl, postVertSource, postFragSource);
+    let edgeDetectionShader = new ShaderProgram(gl, postVertSource, edgeDetectionFragSource);
 
-    let mesh = Mesh.sphere(gl, 16);
-    let sphere = mesh.createInstance();
-    sphere.scale = Mat4.scale(0.5, 0.5, 0.5); 
+    let sphereMesh = Mesh.sphere(gl, 16);
+    let sphere = sphereMesh.createInstance();
+    sphere.scale = Mat4.scale(0.3, 0.3, 0.3);
+    sphere.translation = Mat4.translation(-0.2, 0.0, 0.0);
+    
+    let cubeMesh = Mesh.cube(gl, 0.5, 0.5, 0.5);
+    let cube = cubeMesh.createInstance();
+    cube.scale = Mat4.scale(0.5, 0.5, 0.5);
+    cube.translation = Mat4.translation(0.2, 0.0, 0.0);
 
     let metalTexture = Texture.createFromFile(gl, "../Assets/metal_scale.png");
 
@@ -59,9 +66,12 @@ function main() {
         offscreenShader.setUniformVec3f(gl, "sunDir", 1.0, 1.0, 0.0);
         offscreenShader.setUniformVec3f(gl, "sunColor", 1.0, 1.0, 1.0);
 
-        postShader.bind(gl);
-        postShader.setUniformInt(gl, "albedoTexture", 0);
-        postShader.setUniformInt(gl, "depthTexture", 1);
+        edgeDetectionShader.bind(gl);
+        edgeDetectionShader.setUniformInt(gl, "albedoTexture", 0);
+        edgeDetectionShader.setUniformInt(gl, "depthTexture", 1);
+        
+        edgeDetectionShader.setUniformVec2f(gl, "texelSize", 1 / framebuffer.width, 1 / framebuffer.height);
+        edgeDetectionShader.setUniformVec4f(gl, "outlineColor", 0.0, 0.0, 0.0, 1.0);
     }
 
     /**
@@ -72,23 +82,24 @@ function main() {
     function onRender(renderer) {
         // Offscreen pass
         framebuffer.bind();
-            renderer.setClearColor(0.2, 0.2, 0.2, 1.0);
-            renderer.clearRenderTargets();
-            renderer.enableDepthTesting();
+        renderer.setClearColor(0.2, 0.2, 0.2, 1.0);
+        renderer.clearRenderTargets();
+        renderer.enableDepthTesting();
 
-            metalTexture.bind(gl, 0);
-            sphere.draw(gl, offscreenShader);
+        metalTexture.bind(gl, 0);
+        sphere.draw(gl, offscreenShader);
+        cube.draw(gl, offscreenShader);
         framebuffer.unbind();
 
-        // Post processing pass
-        postShader.bind(gl);
-        renderer.clearRenderTargets();
+        // Start post processing
         renderer.disableDepthTesting();
-
         offscreenAlbedo.bind(gl, 0);
         offscreenDepth.bind(gl, 1);
+
+        // Edge detection pass
+        edgeDetectionShader.bind(gl);
         renderer.drawFullScreenQuad();
-    }
+}
     
     /** 
      * Ran by the renderer every update.

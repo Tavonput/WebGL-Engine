@@ -46,6 +46,19 @@ export class ShaderProgram {
     }
 
     /**
+     * Set a vec2f.
+     * 
+     * @param {WebGL2RenderingContext} gl 
+     * @param {string}                 name 
+     * @param {number}                 x
+     * @param {number}                 y
+     */
+    setUniformVec2f(gl, name, x, y) {
+        const loc = gl.getUniformLocation(this.program, name);
+        gl.uniform2f(loc, x, y);
+    }
+
+    /**
      * Set a vec3f.
      * 
      * @param {WebGL2RenderingContext} gl 
@@ -57,6 +70,21 @@ export class ShaderProgram {
     setUniformVec3f(gl, name, x, y, z) {
         const loc = gl.getUniformLocation(this.program, name);
         gl.uniform3f(loc, x, y, z);
+    }
+
+    /**
+     * Set a vec4f.
+     * 
+     * @param {WebGL2RenderingContext} gl 
+     * @param {string}                 name 
+     * @param {number}                 x
+     * @param {number}                 y
+     * @param {number}                 z 
+     * @param {number}                 w
+     */
+    setUniformVec4f(gl, name, x, y, z, w) {
+        const loc = gl.getUniformLocation(this.program, name);
+        gl.uniform4f(loc, x, y, z, w);
     }
 
     /**

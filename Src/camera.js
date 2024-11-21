@@ -5,6 +5,7 @@ import { Mat4 } from "./Math/matrix.js";
 //
 // I assume this will be refactored into the scene graph.
 export class Camera {
+    
     constructor(aspectRatio) {
         this.aspectRatio = aspectRatio;
         this.fov         = 0.25;

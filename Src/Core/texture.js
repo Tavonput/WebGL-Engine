@@ -19,6 +19,7 @@ export class Texture {
      * @param {number} internalFormat 
      * @param {number} format 
      * @param {number} type 
+     * 
      * @returns {Texture}
      */
     static createRaw(gl, width, height, internalFormat = gl.RGBA, format = gl.RGBA, type = gl.UNSIGNED_BYTE) {
@@ -41,6 +42,7 @@ export class Texture {
      * 
      * @param {WebGL2RenderingContext} gl 
      * @param {string} filename 
+     * 
      * @returns {Texture}
      */
     static createFromFile(gl, filename) {

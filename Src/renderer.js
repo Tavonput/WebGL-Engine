@@ -10,9 +10,9 @@ export class Renderer {
     /**
      * Debug flags used in the fragment shader.
      */
-    static DEBUG_NONE  = 0;
-    static DEBUG_WORLD = 1;
-    static DEBUG_UV    = 2;
+    static DEBUG_NONE   = 0;
+    static DEBUG_WORLD  = 1;
+    static DEBUG_UV     = 2;
     static DEBUG_Z      = 3;
     static DEBUG_NORMAL = 4;
 
