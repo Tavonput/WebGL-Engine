@@ -1,13 +1,90 @@
 <!DOCTYPE html>
 <html>
 
+<!-- 
+    Colors: https://m2.material.io/design/color/dark-theme.html#ui-application
+    #BB86FC Purple
+    #3700B3 Blue
+    #03DAC6 Other Blue
+    #121212 Black/Gray
+-->
+
 <head>
     <style>
-        #the-canvas { border: 5px solid black; }
+        body {
+            display: flex;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            color: #FFFFFF
+        }
+
+        #menu {
+            width: 300px;
+            padding: 20px;
+            background-color: #121212;
+        }
+
+        .section {
+            display: block;
+            margin-top: 10px;
+            background-color: #242424;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        input[type="checkbox"] {
+            margin-top: 5px;
+            display: block;
+            accent-color: #BB86FC;
+        }
+
+        select {
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+
+        #the-canvas { 
+            border: 10px solid #242424; 
+        }
     </style>
 </head>
 
 <body>
+    <div id="menu">
+        <h3>Post-Processing</h3>
+
+        <div class="section">
+            <b>Lighting</b>
+
+            <br> Enable 
+            <input type="checkbox" id="lightingEnabled" checked>
+        </div>
+
+        <div class="section">
+            <b>Edge Detection</b>
+
+            <br> Enable:
+            <input type="checkbox" id="edgeDetectionEnabled" checked>
+
+            <br> Detection Type:
+            <select id="edgeDetectionType">
+                <option value="albedo">Albedo</option>
+                <option value="depth">Depth</option>
+            </select>
+
+            <br> Color:
+            <input type="color" id="edgeDetectionColor">
+        </div>
+
+        <div class="section">
+            <b>Gray Scale</b>
+
+            <br> Enable 
+            <input type="checkbox" id="grayScaleEnabled" checked>
+        </div>
+
+    </div>
+
     <canvas id="the-canvas" width="800" height="600"></canvas>
     <script type="module" src="Src/main.js"></script>
 </body>

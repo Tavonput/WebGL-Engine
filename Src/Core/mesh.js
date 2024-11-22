@@ -59,7 +59,7 @@ export class MeshInstance {
             this.updateModel();
 
         program.bind(gl);
-        program.setUniformMat4f(gl, "model", this.model.data);
+        program.setUniformMat4f(gl, "uModel", this.model.data);
         
         this.mesh.draw(gl, program);
     }
