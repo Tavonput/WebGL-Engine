@@ -1,40 +1,35 @@
 import { Camera } from "./camera.js";
-import { Keys } from "./Core/event.js"; 
+import { Keys } from "./Core/event.js";
+import { ShaderProgram } from "./Core/shaders.js"; 
+import { FrameBuffer } from "./Core/framebuffer.js";
+
+import { PostShader } from "./Shaders/post.js";
 
 // ========================================================================================================================
 // Renderer
 //
 // A renderer manages the rendering context. A renderer is provided with three callbacks, onInit, onRender, and onUpdate.
-// Each callback is passed a reference to the renderer instance.
+// Each callback is passed a reference to the renderer instance. The renderer will class onInit once before the rendering
+// starts, onRender every render update, and onUpdate ever "game" update.
+//
+// The renderer provides functionality for the post-processing pass. It uses a ping-pong buffer approach.
 export class Renderer {
-    /**
-     * Debug flags used in the fragment shader.
-     */
-    static DEBUG_NONE   = 0;
-    static DEBUG_WORLD  = 1;
-    static DEBUG_UV     = 2;
-    static DEBUG_Z      = 3;
-    static DEBUG_NORMAL = 4;
-
     /**
      * Create a renderer with callback functions.
      * 
      * @param {WebGL2RenderingContext} gl 
      * @param {number}                 width
      * @param {number}                 height
-     * @param {function}               onInit   function(renderer) Once at the start
-     * @param {function}               onRender function(renderer) Ran every render update
-     * @param {function}               onUpdate function(renderer) Ran every "game" update
      */
-    constructor(gl, width, height, onInit, onRender, onUpdate) {
+    constructor(gl, width, height) {
         this.gl = gl;
 
-        this.width  = width;
+        this.width = width;
         this.height = height;
 
-        this.onInit   = onInit;
-        this.onRender = onRender;
-        this.onUpdate = onUpdate;
+        this.onInit = null;
+        this.onRender = null;
+        this.onUpdate = null;
 
         this.camera = new Camera(width / height);
 
@@ -44,13 +39,35 @@ export class Renderer {
         this.deltaTimeRender = this.startTime;
 
         this.previousTimeUpdate = this.startTime;
-        this.deltaTimeUpdate    = this.startTime;
+        this.deltaTimeUpdate = this.startTime;
+        
+        // Post processing fields
+        // ----------------------
+
+        /** @type {ShaderProgram[]} */
+        this.postShaders = [];
+    
+        this.pingBuffer = new FrameBuffer(gl, width, height);
+        this.pingBufferColorTarget = this.pingBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_INT);
+
+        this.pongBuffer = new FrameBuffer(gl, width, height);
+        this.pongBufferColorTarget = this.pongBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_INT);
+
+        this.readBuffer = this.pingBuffer;
+        this.writeBuffer = this.pongBuffer;
+
+        this.finalShader = new ShaderProgram(gl, PostShader.vertSource, PostShader.fragSource);
     }
 
     /**
      * Run the renderer.
      */
     run() {
+        if (!this.onInit || !this.onRender || !this.onUpdate) {
+            console.log("Renderer is missing on of the callback functions");
+            return;
+        }
+
         // Init
         this.onInit(this);
 
@@ -150,6 +167,69 @@ export class Renderer {
 
     disableDepthTesting() {
         this.gl.disable(this.gl.DEPTH_TEST);
+    }
+
+    /**
+     * Add a shader to the post processing pipeline.
+     * 
+     * @param {ShaderProgram} shader 
+     */
+    addPostProcessingShader(shader) {
+        this.postShaders.push(shader);
+    }
+
+    /**
+     * Render the post processing shaders in order using a ping-pong approach.
+     * 
+     * @param {number} postColorSlot The active texture slot for the post processing color texture.
+     */
+    renderPostProcessingPipeline(postColorSlot) {
+        const gl = this.gl;
+
+        this.disableDepthTesting();
+        this._clearPingPongBuffers();
+
+        this.postShaders.forEach((shader) => {
+            this.writeBuffer.bind();
+            shader.bind(gl);
+
+            // Bind the correct ping-pong buffer for this iteration
+            this.readBuffer === this.pingBuffer ?
+                this.pingBufferColorTarget.bind(gl, postColorSlot) :
+                this.pongBufferColorTarget.bind(gl, postColorSlot);
+            
+            this.drawFullScreenQuad();
+
+            [this.readBuffer, this.writeBuffer] = [this.writeBuffer, this.readBuffer];
+        })
+    }
+
+    /**
+     * Render the final post processing output to the screen.
+     */
+    renderFinalScreen() {
+        const gl = this.gl;
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        this.clearRenderTargets();
+        this.finalShader.bind(gl);
+
+        // Bind the correct ping-pong buffer
+        this.readBuffer === this.pingBuffer ?
+            this.pingBufferColorTarget.bind(gl, 0) :
+            this.pongBufferColorTarget.bind(gl, 0);
+        
+        this.drawFullScreenQuad();
+    }
+
+    _clearPingPongBuffers() {
+        this.pingBuffer.bind();
+        this.clearRenderTargets();
+
+        this.pongBuffer.bind();
+        this.clearRenderTargets();
+
+        this.pongBuffer.unbind();
     }
 
     /**

@@ -2,6 +2,9 @@ import { Texture } from "./texture.js";
 
 export class FrameBuffer {
 
+    static COLOR_TYPE_FLOAT = 0;
+    static COLOR_TYPE_INT   = 1;
+
     constructor(gl, width, height) {
         this.gl = gl;
         this.width = width;
@@ -15,12 +18,19 @@ export class FrameBuffer {
     /**
      * Add a color attachment to the framebuffer. Currently only creates them in RGBA.
      * 
+     * @param {number} colorType
+     * 
      * @returns {Texture} The texture associated with the attachment.
      */
-    addColorAttachment() {
+    addColorAttachment(colorType) {
         const gl = this.gl;
-        const texture = Texture.createRaw(gl, this.width, this.height);
 
+        let texture = null;
+        if (colorType == FrameBuffer.COLOR_TYPE_INT)
+            texture = Texture.createRaw(gl, this.width, this.height);
+        else if (colorType == FrameBuffer.COLOR_TYPE_FLOAT)
+            texture = Texture.createRaw(gl, this.width, this.height, gl.RGBA32F, gl.RGBA, gl.FLOAT);
+                
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffer);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + this.colorAttachments.length, gl.TEXTURE_2D, texture.glTexture, 0);
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
