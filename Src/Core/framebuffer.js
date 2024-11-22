@@ -13,6 +13,8 @@ export class FrameBuffer {
         this.framebuffer = gl.createFramebuffer();
         this.colorAttachments = [];
         this.depthAttachment = null;
+
+        this.numAttachments = 0;
     }
 
     /**
@@ -36,6 +38,8 @@ export class FrameBuffer {
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
 
         this.colorAttachments.push(texture);
+        this.numAttachments++;
+
         return texture;
     }
 
@@ -53,6 +57,8 @@ export class FrameBuffer {
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
 
         this.depthAttachment = texture;
+        this.numAttachments++;
+
         return texture;
     }
 

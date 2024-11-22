@@ -22,6 +22,8 @@ export class ShaderProgram {
 
         gl.deleteShader(vertexShader);
         gl.deleteShader(fragmentShader);
+
+        this.enabled = true;
     }
 
     /**

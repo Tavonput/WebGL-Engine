@@ -180,16 +180,25 @@ export class Renderer {
 
     /**
      * Render the post processing shaders in order using a ping-pong approach.
-     * 
+     *
+     * @param {FrameBuffer} startBuffer The buffer to copy the color attachment from. 
+     * @param {number} attachmentCopyId The color attachment id of the target to be copied.
      * @param {number} postColorSlot The active texture slot for the post processing color texture.
      */
-    renderPostProcessingPipeline(postColorSlot) {
+    renderPostProcessingPipeline(startBuffer, attachmentCopyId, postColorSlot) {
         const gl = this.gl;
 
         this.disableDepthTesting();
-        this._clearPingPongBuffers();
 
-        this.postShaders.forEach((shader) => {
+        // this._clearPingPongBuffers();
+        // Technically we don't have to clear the ping-pong buffers here since the subsequent copy command
+        // will override whatever is currently in the buffers.
+
+        this._copyColorIntoPingPong(startBuffer, attachmentCopyId);
+        
+        for (const shader of this.postShaders) {
+            if (!shader.enabled) continue;
+
             this.writeBuffer.bind();
             shader.bind(gl);
 
@@ -201,7 +210,7 @@ export class Renderer {
             this.drawFullScreenQuad();
 
             [this.readBuffer, this.writeBuffer] = [this.writeBuffer, this.readBuffer];
-        })
+        }
     }
 
     /**
@@ -222,6 +231,41 @@ export class Renderer {
         this.drawFullScreenQuad();
     }
 
+    /**
+     * Copy a color attachment of a buffer to the ping-pong buffers.
+     * 
+     * @param {FrameBuffer} copyBuffer 
+     * @param {number} attachmentId 
+     */
+    _copyColorIntoPingPong(copyBuffer, attachmentId) {
+        const gl = this.gl;
+
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, copyBuffer.framebuffer);
+        gl.readBuffer(gl.COLOR_ATTACHMENT0 + attachmentId);
+
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.pingBuffer.framebuffer);
+        gl.blitFramebuffer(
+            0, 0, copyBuffer.width, copyBuffer.height,
+            0, 0, this.width, this.height,
+            gl.COLOR_BUFFER_BIT,
+            gl.NEAREST
+        );
+
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.pongBuffer.framebuffer);
+        gl.blitFramebuffer(
+            0, 0, copyBuffer.width, copyBuffer.height,
+            0, 0, this.width, this.height,
+            gl.COLOR_BUFFER_BIT,
+            gl.NEAREST
+        );
+
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+    }
+
+    /**
+     * Clear the ping-pong color and depth buffers.
+     */
     _clearPingPongBuffers() {
         this.pingBuffer.bind();
         this.clearRenderTargets();

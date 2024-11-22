@@ -1,5 +1,8 @@
 export class LightingShader {
 
+    /**
+     * Simple Phong lighting shader.
+     */
     static fragSource =
     `   #version 300 es
         precision mediump float;
@@ -55,7 +58,7 @@ export class LightingShader {
             vec3 L = vec3(1.0);
 
             float distance = length(uLightPos - worldPos);
-            float attenuation = uLightIntensity / distance;
+            float attenuation = uLightIntensity / (distance * distance);
 
             L = normalize(uSunDir);
             vec3 diffuseSun = computeDiffuse(N, L, uSunColor, uMatDiffuse);
