@@ -1,4 +1,53 @@
+import { ShaderProgram } from "../Core/shaders.js";
+
+export class DirLight {
+
+    constructor(direction = [1.0, 1.0, 1.0], color = [1.0, 1.0, 1.0], intensity = 1.0) {
+        this.direction = direction;
+        this.color = color;
+        this.intensity = intensity;
+    }
+
+    /**
+     * Upload the uniforms.
+     * 
+     * @param {WebGL2RenderingContext} gl 
+     * @param {ShaderProgram} program 
+     * @param {string} uniformPrefix 
+     */
+    setUniforms(gl, program, uniformPrefix) {
+        program.setUniformVec3f(gl, `${uniformPrefix}.direction`, this.direction[0], this.direction[1], this.direction[2]);
+        program.setUniformVec3f(gl, `${uniformPrefix}.color`, this.color[0], this.color[1], this.color[2]);
+        program.setUniformFloat(gl, `${uniformPrefix}.intensity`, this.intensity);
+    }
+}
+
+export class PointLight {
+
+    constructor(position = [1.0, 1.0, 1.0], color = [1.0, 1.0, 1.0], intensity = 1.0) {
+        this.position = position;
+        this.color = color;
+        this.intensity = intensity;
+    }
+
+    /**
+     * Upload the uniforms.
+     * 
+     * @param {WebGL2RenderingContext} gl 
+     * @param {ShaderProgram} program 
+     * @param {string} uniformPrefix 
+     * @param {number} idx
+     */
+    setUniforms(gl, program, uniformPrefix, idx) {
+        program.setUniformVec3f(gl, `${uniformPrefix}[${idx}].position`, this.position[0], this.position[1], this.position[2]);
+        program.setUniformVec3f(gl, `${uniformPrefix}[${idx}].color`, this.color[0], this.color[1], this.color[2]);
+        program.setUniformFloat(gl, `${uniformPrefix}[${idx}].intensity`, this.intensity);
+    }
+}
+
 export class LightingShader {
+
+    static MAX_POINT_LIGHTS = 256;
 
     /**
      * Simple Phong lighting shader.
@@ -7,9 +56,23 @@ export class LightingShader {
     `   #version 300 es
         precision mediump float;
 
+        #define MAX_POINT_LIGHTS 256
+
         in vec2 vTex;
 
         out vec4 outColor;
+
+        struct DirLight {
+            vec3 direction;
+            vec3 color;
+            float intensity;
+        };
+
+        struct PointLight {
+            vec3 position;
+            vec3 color;
+            float intensity;
+        };
 
         uniform sampler2D gPosition;
         uniform sampler2D gAlbedo;
@@ -19,12 +82,9 @@ export class LightingShader {
 
         uniform vec3 uCameraPos;
 
-        uniform vec3 uLightPos;
-        uniform vec3 uLightColor;
-        uniform float uLightIntensity;
-
-        uniform vec3 uSunDir;
-        uniform vec3 uSunColor;
+        uniform DirLight uDirLight;
+        uniform PointLight uPointLights[MAX_POINT_LIGHTS];
+        uniform int uNumPointLights;
 
         uniform float uMatAmbient;
         uniform float uMatDiffuse;
@@ -43,32 +103,43 @@ export class LightingShader {
             return specular * lightColor * pow(max(dot(R, V), 0.0), shininess);
         }
 
+        vec3 computeDirLight(DirLight light, vec3 N, vec3 V, float matDiffuse, float matSpecular, float matShininess) {
+            vec3 L = normalize(light.direction);
+            vec3 diffuse = computeDiffuse(N, L, light.color, matDiffuse);
+            vec3 specular = computeSpecular(N, L, V, light.color, matSpecular, matShininess);
+
+            return (diffuse + specular) * light.intensity;
+        }
+
+        vec3 computePointLight(PointLight light, vec3 N, vec3 V, vec3 fragPos, float matDiffuse, float matSpecular, float matShininess) {
+            float distance = length(light.position - fragPos);
+            float attenuation = light.intensity / (distance * distance);
+
+            vec3 L = normalize(light.position - fragPos);
+            vec3 diffuse = computeDiffuse(N, L, light.color, matDiffuse) * attenuation;
+            vec3 specular = computeSpecular(N, L, V, light.color, matSpecular, matShininess) * attenuation;
+
+            return diffuse + specular;
+        }
+
         void main() {
             float depth = texture(gDepth, vTex).r;
             if (depth >= 1.0)
                 discard;
 
             vec3 albedo = texture(gAlbedo, vTex).rgb;
-            vec3 N = texture(gNormal, vTex).xyz;
             vec3 worldPos = texture(gPosition, vTex).xyz;
+            vec3 N = texture(gNormal, vTex).xyz;
+            vec3 V = normalize(uCameraPos - worldPos);
 
+            vec3 lighting = computeDirLight(uDirLight, N, V, uMatDiffuse, uMatSpecular, uMatShininess);
+
+            for (int i = 0; i < uNumPointLights; i++)
+                lighting += computePointLight(uPointLights[i], N, V, worldPos, uMatDiffuse, uMatSpecular, uMatShininess);
+            
             vec3 ambient = uMatAmbient * albedo;
 
-            vec3 V = normalize(uCameraPos - worldPos);
-            vec3 L = vec3(1.0);
-
-            float distance = length(uLightPos - worldPos);
-            float attenuation = uLightIntensity / (distance * distance);
-
-            L = normalize(uSunDir);
-            vec3 diffuseSun = computeDiffuse(N, L, uSunColor, uMatDiffuse);
-            vec3 specularSun = computeSpecular(N, L, V, uSunColor, uMatSpecular, uMatShininess);
-
-            L = normalize(uLightPos - worldPos);
-            vec3 diffusePoint = computeDiffuse(N, L, uLightColor, uMatDiffuse) * attenuation;
-            vec3 specularPoint = computeSpecular(N, L, V, uLightColor, uMatSpecular, uMatShininess) * attenuation;
-            
-            outColor = vec4((ambient + diffuseSun + diffusePoint + specularSun + specularPoint), 1.0);
+            outColor = vec4((ambient + lighting), 1.0);
         }
     `;
 }

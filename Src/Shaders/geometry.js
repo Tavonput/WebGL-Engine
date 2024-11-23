@@ -18,8 +18,7 @@ export class GBufferShader {
         uniform mat4 uView;
         uniform mat4 uProjection;
 
-        void main() 
-        {
+        void main() {
             vec4 worldPos = uModel * vec4(inPos, 1.0);
             gl_Position = uProjection * uView * worldPos;
 
@@ -51,5 +50,5 @@ export class GBufferShader {
             gAlbedo = texture(tex0, vTex).rgb;
             gNormal = normalize(vNormal);
         }
-    `
+    `;
 }
