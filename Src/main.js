@@ -7,11 +7,12 @@ import { Texture } from "./Core/texture.js";
 import { FrameBuffer } from "./Core/framebuffer.js";
 
 import { GBufferShader } from "./Shaders/geometry.js";
-import { LightingShader, DirLight, PointLight } from "./Shaders/lighting.js";
+import { PhongShader, ToonShader, DirLight, PointLight } from "./Shaders/lighting.js";
 import { LightBoxShader } from "./Shaders/light_box.js";
 import { PostShader } from "./Shaders/post.js";
 import { EdgeDetectionShader } from "./Shaders/edge_detection.js";
 import { GrayScaleShader } from "./Shaders/grayscale.js";
+import { HalftoneShader } from "./Shaders/halftone.js";
 
 // ========================================================================================================================
 // Main
@@ -31,19 +32,47 @@ function main() {
     // Shader programs
     let gBufferShader = new ShaderProgram(gl, GBufferShader.vertSource, GBufferShader.fragSource);
     let lightBoxShader = new ShaderProgram(gl, LightBoxShader.vertSource, LightBoxShader.fragSource);
-    let lightingShader = new ShaderProgram(gl, PostShader.vertSource, LightingShader.fragSource);
+    let phongShader = new ShaderProgram(gl, PostShader.vertSource, PhongShader.fragSource);
+    let toonShader = new ShaderProgram(gl, PostShader.vertSource, ToonShader.fragSource);
     let edgeDetectionShader = new ShaderProgram(gl, PostShader.vertSource, EdgeDetectionShader.fragSource);
     let grayScaleShader = new ShaderProgram(gl, PostShader.vertSource, GrayScaleShader.fragSource);
+    let halftoneShader = new ShaderProgram(gl, PostShader.vertSource, HalftoneShader.fragSource);
 
     grayScaleShader.enabled = false;
+    phongShader.enabled = false;
 
-    renderer.addPostProcessingShader(lightingShader);
+    renderer.addPostProcessingShader(toonShader);
+    renderer.addPostProcessingShader(phongShader);
     renderer.addPostProcessingShader(edgeDetectionShader);
+    renderer.addPostProcessingShader(halftoneShader); 
     renderer.addPostProcessingShader(grayScaleShader);
 
     // Menu stuff for the post processing shaders. Will probably refactor later.
+    let currentLightingShader = toonShader;
     document.getElementById("lightingEnabled").addEventListener("input", (event) => {
-        lightingShader.enabled = event.target.checked;
+        if (event.target.checked)
+            currentLightingShader.enabled = event.target.checked;
+        else {
+            toonShader.enabled = event.target.checked;
+            phongShader.enabled = event.target.checked;
+        }
+    });
+    document.getElementById("lightingMethod").addEventListener("input", (event) => {
+        if (event.target.value === "toon") {
+            toonShader.enabled = true;
+            currentLightingShader = toonShader;
+            phongShader.enabled = false;
+        }
+        else if (event.target.value === "phong") {
+            phongShader.enabled = true;
+            currentLightingShader = phongShader;
+            toonShader.enabled = false;
+        }
+    });
+
+    document.getElementById("toonSteps").addEventListener("input", (event) => {
+        toonShader.bind(gl);
+        toonShader.setUniformFloat(gl, "uSteps", parseFloat(event.target.value));
     });
 
     document.getElementById("edgeDetectionEnabled").addEventListener("input", (event) => {
@@ -70,8 +99,32 @@ function main() {
         );
     });
 
+    document.getElementById("halftoneEnabled").addEventListener("input", (event) => {
+        halftoneShader.enabled = event.target.checked;
+    });
+
+    document.getElementById("halftoneSteps").addEventListener("input", (event) => {
+        halftoneShader.bind(gl);
+        halftoneShader.setUniformFloat(gl, "uSteps", parseFloat(event.target.value));
+    });
+
+    document.getElementById("halftoneScale").addEventListener("input", (event) => {
+        halftoneShader.bind(gl);
+        halftoneShader.setUniformFloat(gl, "uScale", parseFloat(event.target.value));
+    });
+
+    document.getElementById("halftoneIntensity").addEventListener("input", (event) => {
+        halftoneShader.bind(gl);
+        halftoneShader.setUniformFloat(gl, "uIntensity", parseFloat(event.target.value));
+    });
+
     document.getElementById("grayScaleEnabled").addEventListener("input", (event) => {
         grayScaleShader.enabled = event.target.checked;
+    });
+
+    document.getElementById("grayScaleSteps").addEventListener("input", (event) => {
+        grayScaleShader.bind(gl);
+        grayScaleShader.setUniformFloat(gl, "uSteps", parseFloat(event.target.value));
     });
     
     // Meshes
@@ -142,35 +195,46 @@ function main() {
         gBufferShader.setUniformMat4f(gl, "uView", renderer.camera.getView().data);
         
         // Lighting uniforms
-        lightingShader.bind(gl);
-        setPostProcessingTextureSlots(lightingShader);
+        for (const shader of [phongShader, toonShader]) {
+            shader.bind(gl);
+            setPostProcessingTextureSlots(shader);
 
-        lightingShader.setUniformVec3f(gl, "uCameraPos",
-            renderer.camera.position[0], renderer.camera.position[1], renderer.camera.position[2]
-        );
+            shader.setUniformVec3f(gl, "uCameraPos",
+                renderer.camera.position[0], renderer.camera.position[1], renderer.camera.position[2]
+            );
 
-        lightingShader.setUniformFloat(gl, "uMatAmbient", 0.25);
-        lightingShader.setUniformFloat(gl, "uMatDiffuse", 1.0);
-        lightingShader.setUniformFloat(gl, "uMatSpecular", 2.0);
-        lightingShader.setUniformFloat(gl, "uMatShininess", 4.0);
+            shader.setUniformFloat(gl, "uMatAmbient", 0.25);
+            shader.setUniformFloat(gl, "uMatDiffuse", 1.0);
+            shader.setUniformFloat(gl, "uMatSpecular", 2.0);
+            shader.setUniformFloat(gl, "uMatShininess", 4.0);
 
-        dirLight.setUniforms(gl, lightingShader, "uDirLight");
-        for (let i = 0; i < pointLights.length; i++)
-            pointLights[i].setUniforms(gl, lightingShader, "uPointLights", i);
+            dirLight.setUniforms(gl, shader, "uDirLight");
+            for (let i = 0; i < pointLights.length; i++)
+                pointLights[i].setUniforms(gl, shader, "uPointLights", i);
 
-        lightingShader.setUniformInt(gl, "uNumPointLights", pointLights.length);
-
+            shader.setUniformInt(gl, "uNumPointLights", pointLights.length);
+        }
+        toonShader.setUniformFloat(gl, "uSteps", 3.0);
+        
         // Edge detection uniforms
         edgeDetectionShader.bind(gl);
         setPostProcessingTextureSlots(edgeDetectionShader);
         
         edgeDetectionShader.setUniformVec2f(gl, "uTexelSize", 1 / gBuffer.width, 1 / gBuffer.height);
         edgeDetectionShader.setUniformVec3f(gl, "uOutlineColor", 0.0, 0.0, 0.0);
-        edgeDetectionShader.setUniformInt(gl, "uDetectionType", EdgeDetectionShader.DETECTION_ALBEDO);
+        edgeDetectionShader.setUniformInt(gl, "uDetectionType", EdgeDetectionShader.DETECTION_DEPTH);
+
+        // Halftone uniforms
+        halftoneShader.bind(gl);
+        setPostProcessingTextureSlots(halftoneShader);
+        halftoneShader.setUniformFloat(gl, "uSteps", 3.0);
+        halftoneShader.setUniformFloat(gl, "uScale", 2.8);
+        halftoneShader.setUniformFloat(gl, "uIntensity", 0.05);
 
         // Grey scale uniforms
         grayScaleShader.bind(gl);
         setPostProcessingTextureSlots(grayScaleShader);
+        grayScaleShader.setUniformFloat(gl, "uSteps", 8.0);
 
         // Light box uniforms
         lightBoxShader.bind(gl);
@@ -251,11 +315,13 @@ function main() {
     function onUpdate(renderer) {
         renderer.updateCamera(keyboard);
 
-        lightingShader.bind(gl);
-        lightingShader.setUniformVec3f(gl, "uCameraPos",
-            renderer.camera.position[0], renderer.camera.position[1], renderer.camera.position[2]
-        );
-
+        for (const shader of [phongShader, toonShader]) {
+            shader.bind(gl);
+            shader.setUniformVec3f(gl, "uCameraPos",
+                renderer.camera.position[0], renderer.camera.position[1], renderer.camera.position[2]
+            );
+        }
+        
         gBufferShader.bind(gl);
         gBufferShader.setUniformMat4f(gl, "uView", renderer.camera.getView().data);
 

@@ -19,7 +19,9 @@
         }
 
         #menu {
+            max-height: 600px;
             width: 300px;
+            overflow-y: auto;
             padding: 20px;
             background-color: #121212;
         }
@@ -51,36 +53,76 @@
 
 <body>
     <div id="menu">
-        <h3>Post-Processing</h3>
+        <h3>POST PROCESSING</h3>
 
         <div class="section">
             <b>Lighting</b>
 
-            <br> Enable 
+            <br>
+            <label for="lightingEnabled">Enabled:</label>
             <input type="checkbox" id="lightingEnabled" checked>
+
+            <br>
+            <label for="lightingMethod">Lighting Method:</label>
+            <select id="lightingMethod">
+                <option value="toon">Toon</option>
+                <option value="phong">Phong</option>
+            </select>
+
+            <br>
+            <label for="toonSteps">Toon Steps:</label>
+            <input type="range" id="toonSteps" min="2.0" max="20.0" step="1.0" value="3.0">
         </div>
 
         <div class="section">
             <b>Edge Detection</b>
-
-            <br> Enable:
+            
+            <br>
+            <label for="edgeDetectionEnabled">Enabled:</label>
             <input type="checkbox" id="edgeDetectionEnabled" checked>
 
-            <br> Detection Type:
+            <br>
+            <label for="edgeDetectionType">Detection Type:</label>
             <select id="edgeDetectionType">
+                <option value="Depth">Depth</option>
                 <option value="albedo">Albedo</option>
-                <option value="depth">Depth</option>
             </select>
 
-            <br> Color:
+            <br>
+            <label for="edgeDetectionColor">Color:</label>
             <input type="color" id="edgeDetectionColor">
+        </div>
+
+        <div class="section">
+            <b>Halftone</b>
+        
+            <br>
+            <label for="halftoneEnabled">Enabled:</label>
+            <input type="checkbox" id="halftoneEnabled" checked>
+        
+            <br>
+            <label for="halftoneSteps">Steps:</label>
+            <input type="range" id="halftoneSteps" min="1.0" max="10.0" step="1.0" value="3.0">
+
+            <br>
+            <label for="halftoneScale">Scale:</label>
+            <input type="range" id="halftoneScale" min="1.0" max="10.0" step="0.2" value="2.8">
+
+            <br>
+            <label for="halftoneIntensity">Intensity:</label>
+            <input type="range" id="halftoneIntensity" min="0.0" max="1.0" step="0.05" value="0.05">
         </div>
 
         <div class="section">
             <b>Gray Scale</b>
 
-            <br> Enable 
+            <br>
+            <label for="grayScaleEnabled">Enabled:</label>
             <input type="checkbox" id="grayScaleEnabled">
+
+            <br>
+            <label for="grayScaleSteps">Steps:</label>
+            <input type="range" id="grayScaleSteps" min="2.0" max="20.0" step="1.0" value="8.0">
         </div>
 
     </div>
