@@ -18,6 +18,52 @@ export class FrameBuffer {
     }
 
     /**
+     * Copy a color attachment from one buffer to another.
+     * 
+     * @param {WebGL2RenderingContext} gl 
+     * @param {FrameBuffer} srcBuffer 
+     * @param {FrameBuffer} dstBuffer 
+     * @param {number} attachment 
+     */
+    static copyColor(gl, srcBuffer, dstBuffer, attachment) {
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, srcBuffer.framebuffer);
+        gl.readBuffer(gl.COLOR_ATTACHMENT0 + attachment)
+
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dstBuffer.framebuffer);
+        gl.blitFramebuffer(
+            0, 0, dstBuffer.width, dstBuffer.height,
+            0, 0, dstBuffer.width, dstBuffer.height,
+            gl.COLOR_BUFFER_BIT,
+            gl.NEAREST
+        );
+
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+    }
+
+    /**
+     * Copy the depth attachment from one buffer to another.
+     * 
+     * @param {WebGL2RenderingContext} gl 
+     * @param {FrameBuffer} srcBuffer 
+     * @param {FrameBuffer} dstBuffer 
+     */
+    static copyDepth(gl, srcBuffer, dstBuffer) {
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, srcBuffer.framebuffer);
+
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dstBuffer.framebuffer);
+        gl.blitFramebuffer(
+            0, 0, srcBuffer.width, srcBuffer.height,
+            0, 0, srcBuffer.width, srcBuffer.height,
+            gl.DEPTH_BUFFER_BIT,
+            gl.NEAREST
+        );
+
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+    }
+
+    /**
      * Add a color attachment to the framebuffer. Currently only creates them in RGBA.
      * 
      * @param {number} colorType

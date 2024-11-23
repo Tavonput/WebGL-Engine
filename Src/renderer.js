@@ -32,6 +32,7 @@ export class Renderer {
         this.onUpdate = null;
 
         this.camera = new Camera(width / height);
+        this.camera.position = [0.0, 0.0, -1.0];
 
         this.updatesPerSecond = 60;
 
@@ -149,6 +150,10 @@ export class Renderer {
         this.camera.updateOrientation(dr, dp, dyw);
     }
 
+    bindScreenFramebuffer() {
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+    }
+
     drawFullScreenQuad() {
         this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
     }
@@ -191,10 +196,11 @@ export class Renderer {
         this.disableDepthTesting();
 
         // this._clearPingPongBuffers();
-        // Technically we don't have to clear the ping-pong buffers here since the subsequent copy command
+        // Technically we don't have to clear the ping-pong buffers here since the subsequent copy commands
         // will override whatever is currently in the buffers.
 
-        this._copyColorIntoPingPong(startBuffer, attachmentCopyId);
+        FrameBuffer.copyColor(gl, startBuffer, this.pingBuffer, attachmentCopyId);
+        FrameBuffer.copyColor(gl, startBuffer, this.pongBuffer, attachmentCopyId);
         
         for (const shader of this.postShaders) {
             if (!shader.enabled) continue;
@@ -214,9 +220,9 @@ export class Renderer {
     }
 
     /**
-     * Render the final post processing output to the screen.
+     * Rendering the final post processing output to the screen.
      */
-    renderFinalScreen() {
+    finalizePostProcessing() {
         const gl = this.gl;
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -229,38 +235,6 @@ export class Renderer {
             this.pongBufferColorTarget.bind(gl, 0);
         
         this.drawFullScreenQuad();
-    }
-
-    /**
-     * Copy a color attachment of a buffer to the ping-pong buffers.
-     * 
-     * @param {FrameBuffer} copyBuffer 
-     * @param {number} attachmentId 
-     */
-    _copyColorIntoPingPong(copyBuffer, attachmentId) {
-        const gl = this.gl;
-
-        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, copyBuffer.framebuffer);
-        gl.readBuffer(gl.COLOR_ATTACHMENT0 + attachmentId);
-
-        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.pingBuffer.framebuffer);
-        gl.blitFramebuffer(
-            0, 0, copyBuffer.width, copyBuffer.height,
-            0, 0, this.width, this.height,
-            gl.COLOR_BUFFER_BIT,
-            gl.NEAREST
-        );
-
-        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.pongBuffer.framebuffer);
-        gl.blitFramebuffer(
-            0, 0, copyBuffer.width, copyBuffer.height,
-            0, 0, this.width, this.height,
-            gl.COLOR_BUFFER_BIT,
-            gl.NEAREST
-        );
-
-        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
-        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
     }
 
     /**

@@ -7,7 +7,8 @@ import { Texture } from "./Core/texture.js";
 import { FrameBuffer } from "./Core/framebuffer.js";
 
 import { GBufferShader } from "./Shaders/geometry.js";
-import { LightingShader } from "./Shaders/lighting.js";
+import { LightingShader, DirLight, PointLight } from "./Shaders/lighting.js";
+import { LightBoxShader } from "./Shaders/light_box.js";
 import { PostShader } from "./Shaders/post.js";
 import { EdgeDetectionShader } from "./Shaders/edge_detection.js";
 import { GrayScaleShader } from "./Shaders/grayscale.js";
@@ -29,9 +30,12 @@ function main() {
 
     // Shader programs
     let gBufferShader = new ShaderProgram(gl, GBufferShader.vertSource, GBufferShader.fragSource);
+    let lightBoxShader = new ShaderProgram(gl, LightBoxShader.vertSource, LightBoxShader.fragSource);
     let lightingShader = new ShaderProgram(gl, PostShader.vertSource, LightingShader.fragSource);
     let edgeDetectionShader = new ShaderProgram(gl, PostShader.vertSource, EdgeDetectionShader.fragSource);
     let grayScaleShader = new ShaderProgram(gl, PostShader.vertSource, GrayScaleShader.fragSource);
+
+    grayScaleShader.enabled = false;
 
     renderer.addPostProcessingShader(lightingShader);
     renderer.addPostProcessingShader(edgeDetectionShader);
@@ -73,13 +77,13 @@ function main() {
     // Meshes
     let sphereMesh = Mesh.sphere(gl, 16);
     let sphere = sphereMesh.createInstance();
-    sphere.scale = Mat4.scale(0.3, 0.3, 0.3);
-    sphere.translation = Mat4.translation(-0.2, 0.0, 0.0);
+    sphere.scale = Mat4.scale(0.5, 0.5, 0.5);
+    sphere.translation = Mat4.translation(-0.4, 0.0, 0.0);
     
     let cubeMesh = Mesh.cube(gl, 0.5, 0.5, 0.5);
     let cube = cubeMesh.createInstance();
-    cube.scale = Mat4.scale(0.5, 0.5, 0.5);
-    cube.translation = Mat4.translation(0.2, 0.0, 0.0);
+    cube.scale = Mat4.scale(0.8, 0.8, 0.8);
+    cube.translation = Mat4.translation(0.4, 0.0, 0.0);
 
     let metalTexture = Texture.createFromFile(gl, "../Assets/metal_scale.png");
     let ivyTexture = Texture.createFromFile(gl, "../Assets/ivy_seamless.png");
@@ -90,6 +94,30 @@ function main() {
     let gBufferAlbedoTarget = gBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_INT);
     let gBufferNormalTarget = gBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_FLOAT);
     let gBufferDepthTarget = gBuffer.addDepthAttachment();
+
+    // Forward buffer
+    let forwardBuffer = new FrameBuffer(gl, canvas.width, canvas.height);
+    let forwardColorTarget = forwardBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_INT);
+    let forwardDepthTarget = forwardBuffer.addDepthAttachment();
+
+    // Lights
+    const dirLight = new DirLight([1.0, 1.0, 0.0], [1.0, 1.0, 1.0], 0.5);
+    const pointLightData = [
+        // Position          Color            Intensity
+        [[-0.7, -0.7, -0.7], [1.0, 0.0, 0.0], 0.5],
+        [[-0.7,  0.7,  0.0], [0.0, 0.0, 1.0], 0.5],
+        [[ 0.7,  0.0,  0.7], [0.0, 1.0, 0.0], 0.3],
+    ];
+    let pointLights = []
+    let lightBoxes = []
+    for (const data of pointLightData) {
+        pointLights.push(new PointLight(data[0], data[1], data[2]));
+
+        let box = cubeMesh.createInstance();
+        box.scale = Mat4.scale(0.2, 0.2, 0.2);
+        box.translation = Mat4.translation(data[0][0], data[0][1], data[0][2]);
+        lightBoxes.push(box);
+    }
 
     // ==========
     /** 
@@ -126,12 +154,11 @@ function main() {
         lightingShader.setUniformFloat(gl, "uMatSpecular", 2.0);
         lightingShader.setUniformFloat(gl, "uMatShininess", 4.0);
 
-        lightingShader.setUniformVec3f(gl, "uLightPos", -1.0, -1.0, -1.0);
-        lightingShader.setUniformVec3f(gl, "uLightColor", 1.0, 0.0, 0.0);
-        lightingShader.setUniformFloat(gl, "uLightIntensity", 0.5);
+        dirLight.setUniforms(gl, lightingShader, "uDirLight");
+        for (let i = 0; i < pointLights.length; i++)
+            pointLights[i].setUniforms(gl, lightingShader, "uPointLights", i);
 
-        lightingShader.setUniformVec3f(gl, "uSunDir", 1.0, 1.0, 0.0);
-        lightingShader.setUniformVec3f(gl, "uSunColor", 1.0, 1.0, 1.0);
+        lightingShader.setUniformInt(gl, "uNumPointLights", pointLights.length);
 
         // Edge detection uniforms
         edgeDetectionShader.bind(gl);
@@ -144,6 +171,11 @@ function main() {
         // Grey scale uniforms
         grayScaleShader.bind(gl);
         setPostProcessingTextureSlots(grayScaleShader);
+
+        // Light box uniforms
+        lightBoxShader.bind(gl);
+        lightBoxShader.setUniformMat4f(gl, "uProjection", renderer.camera.projection.data);
+        lightBoxShader.setUniformMat4f(gl, "uView", renderer.camera.getView().data);
     }
 
     /**
@@ -171,16 +203,44 @@ function main() {
     
         // Post processing pass
         {
+            // Bind the G buffer
             gBufferPosTarget.bind(gl, 0);
             gBufferAlbedoTarget.bind(gl, 1);
             gBufferNormalTarget.bind(gl, 2);
             gBufferDepthTarget.bind(gl, 3);
             
+            // Render the post processing shaders in order
             renderer.renderPostProcessingPipeline(gBuffer, 1, gBuffer.numAttachments);
+            renderer.finalizePostProcessing();
         }
+
+        // Final forward pass
+        //
+        // This one is a bit jank. Usually we would just copy the G buffer depth attachment to the default framebuffer's depth attachment,
+        // then continue with rendering. This approach is descried in the LearnOpenGL Deferred Shading chapter. But, unfortunately 
+        // WebGL does not seem to allow us to manually copy data into the default depth attachment, thus we have to work around this.
+        // Instead, we will setup an intermediate framebuffer where we can copy the G buffer depth attachment to. We will also copy the
+        // result of the post processing color attachment to the intermediate framebuffer's main color attachment. Then we can render to
+        // the intermediate framebuffer and write the final result in one last pass to the screen.
+        {
+            FrameBuffer.copyColor(gl, renderer.readBuffer, forwardBuffer, 0);
+            FrameBuffer.copyDepth(gl, gBuffer, forwardBuffer);
         
-        // Final pass
-        renderer.renderFinalScreen();
+            forwardBuffer.bind();
+            renderer.enableDepthTesting();
+
+            lightBoxShader.bind(gl);
+            for (let i = 0; i < lightBoxes.length; i++) {
+                lightBoxShader.setUniformVec3f(gl, "uLightColor", pointLights[i].color[0], pointLights[i].color[1], pointLights[i].color[2]);
+                lightBoxes[i].draw(gl, lightBoxShader);
+            }
+
+            renderer.disableDepthTesting();
+            renderer.bindScreenFramebuffer();
+            renderer.finalShader.bind(gl);
+            forwardColorTarget.bind(gl, 0);
+            renderer.drawFullScreenQuad();
+        }
     }
     
     /** 
@@ -198,6 +258,9 @@ function main() {
 
         gBufferShader.bind(gl);
         gBufferShader.setUniformMat4f(gl, "uView", renderer.camera.getView().data);
+
+        lightBoxShader.bind(gl);
+        lightBoxShader.setUniformMat4f(gl, "uView", renderer.camera.getView().data);
     }
     // ==========
 
