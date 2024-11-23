@@ -1,6 +1,6 @@
 export class GrayScaleShader {
     /**
-     * Just averages the colors.
+     * Quantized gray scale conversion.
      */
     static fragSource =
     `   #version 300 es
@@ -16,9 +16,15 @@ export class GrayScaleShader {
         uniform sampler2D gDepth;
         uniform sampler2D uPostColor;
 
+        uniform float uSteps;
+
         void main() {
             vec3 albedo = texture(uPostColor, vTex).rgb;
-            float color = (albedo.r + albedo.g + albedo.b) / 3.0;
+
+            // NTSC Formula
+            float color = dot(albedo, vec3(0.299, 0.587, 0.114));
+
+            color = floor(color * uSteps) / uSteps;
 
             outColor = vec4(vec3(color), 1.0);
         }
