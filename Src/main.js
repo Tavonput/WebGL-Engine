@@ -25,12 +25,12 @@ function main() {
     // Renderer
     let renderer = new Renderer(gl, canvas.width, canvas.height);
     renderer.updatesPerSecond = 60;
+    renderer.setClearColor(0.9, 0.9, 0.9, 1.0);
 
     // Keyboard
     let keyboard = Keys.startListening();
 
     // Shader programs
-    let gBufferShader = new ShaderProgram(gl, GBufferShader.vertSource, GBufferShader.fragSource);
     let lightBoxShader = new ShaderProgram(gl, LightBoxShader.vertSource, LightBoxShader.fragSource);
     let phongShader = new ShaderProgram(gl, PostShader.vertSource, PhongShader.fragSource);
     let toonShader = new ShaderProgram(gl, PostShader.vertSource, ToonShader.fragSource);
@@ -64,19 +64,6 @@ function main() {
     let cubeMaterial = new Material(0.2, 1.0, 1.0, 2.0);
     let metalTexture = Texture.createFromFile(gl, "../Assets/metal_scale.png");
     let ivyTexture = Texture.createFromFile(gl, "../Assets/ivy_seamless.png");
-
-    // G Buffer
-    let gBuffer = new FrameBuffer(gl, canvas.width, canvas.height);
-    let gBufferDepthTarget = gBuffer.addDepthAttachment();
-    let gBufferPosTarget = gBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_FLOAT);
-    let gBufferAlbedoTarget = gBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_INT);
-    let gBufferNormalTarget = gBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_FLOAT);
-    let gBufferMaterialTarget = gBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_FLOAT);
-
-    // Forward buffer
-    let forwardBuffer = new FrameBuffer(gl, canvas.width, canvas.height);
-    let forwardDepthTarget = forwardBuffer.addDepthAttachment();
-    let forwardColorTarget = forwardBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_INT);
 
     // Lights
     const dirLight = new DirLight([1.0, 1.0, 0.0], [1.0, 1.0, 1.0], 0.5);
@@ -149,26 +136,9 @@ function main() {
      * @param {Renderer} renderer  
      */
     function onInit(renderer) {
-
-        // All of the post processing shaders must have the same first set of textures.
-        function setPostProcessingTextureSlots(shader) {
-            shader.setUniformInt(gl, "gPosition", 0);
-            shader.setUniformInt(gl, "gAlbedo", 1);
-            shader.setUniformInt(gl, "gNormal", 2);
-            shader.setUniformInt(gl, "gMaterial", 3)
-            shader.setUniformInt(gl, "gDepth", 4);
-            shader.setUniformInt(gl, "uPostColor", gBuffer.numAttachments);
-        }
-
-        // G Buffer uniforms
-        gBufferShader.bind(gl);
-        gBufferShader.setUniformMat4f(gl, "uProjection", renderer.camera.projection.data);
-        gBufferShader.setUniformMat4f(gl, "uView", renderer.camera.getView().data);
-        
         // Lighting uniforms
         for (const shader of [phongShader, toonShader]) {
             shader.bind(gl);
-            setPostProcessingTextureSlots(shader);
 
             shader.setUniformVec3f(gl, "uCameraPos",
                 renderer.camera.position[0], renderer.camera.position[1], renderer.camera.position[2]
@@ -184,22 +154,18 @@ function main() {
         
         // Edge detection uniforms
         edgeDetectionShader.bind(gl);
-        setPostProcessingTextureSlots(edgeDetectionShader);
-        
-        edgeDetectionShader.setUniformVec2f(gl, "uTexelSize", 1 / gBuffer.width, 1 / gBuffer.height);
+        edgeDetectionShader.setUniformVec2f(gl, "uTexelSize", 1 / renderer.gBuffer.width, 1 / renderer.gBuffer.height);
         edgeDetectionShader.setUniformVec3f(gl, "uOutlineColor", 0.0, 0.0, 0.0);
         edgeDetectionShader.setUniformInt(gl, "uDetectionType", EdgeDetectionShader.DETECTION_DEPTH);
 
         // Halftone uniforms
         halftoneShader.bind(gl);
-        setPostProcessingTextureSlots(halftoneShader);
         halftoneShader.setUniformFloat(gl, "uSteps", 3.0);
         halftoneShader.setUniformFloat(gl, "uScale", 2.8);
         halftoneShader.setUniformFloat(gl, "uIntensity", 0.05);
 
         // Grey scale uniforms
         grayScaleShader.bind(gl);
-        setPostProcessingTextureSlots(grayScaleShader);
         grayScaleShader.setUniformFloat(gl, "uSteps", 8.0);
 
         // Light box uniforms
@@ -214,67 +180,28 @@ function main() {
      * @param {Renderer} renderer 
      */
     function onRender(renderer) {
-        // Geometry pass
-        {
-            gBuffer.bind();
-            gBufferShader.bind(gl);
-
-            renderer.setClearColor(0.9, 0.9, 0.9, 1.0);
-            renderer.clearRenderTargets();
-            renderer.enableDepthTesting();
-
-            sphereMaterial.setUniforms(gl, gBufferShader);
+        renderer.geometryPass(() => {
+            sphereMaterial.setUniforms(gl, renderer.gBufferShader);
             metalTexture.bind(gl, 0);
-            sphere.draw(gl, gBufferShader);
+            sphere.draw(gl, renderer.gBufferShader);
 
-            cubeMaterial.setUniforms(gl, gBufferShader);
+            cubeMaterial.setUniforms(gl, renderer.gBufferShader);
             ivyTexture.bind(gl, 0);
-            cube.draw(gl, gBufferShader);
+            cube.draw(gl, renderer.gBufferShader);
+        });
 
-            gBuffer.unbind();
-        }
-    
-        // Post processing pass
-        {
-            // Bind the G buffer
-            gBufferPosTarget.bind(gl, 0);
-            gBufferAlbedoTarget.bind(gl, 1);
-            gBufferNormalTarget.bind(gl, 2);
-            gBufferMaterialTarget.bind(gl, 3)
-            gBufferDepthTarget.bind(gl, 4);
-            
-            // Render the post processing shaders in order
-            renderer.renderPostProcessingPipeline(gBuffer, 1, gBuffer.numAttachments);
-            renderer.finalizePostProcessing();
-        }
-
-        // Final forward pass
-        //
-        // This one is a bit jank. Usually we would just copy the G buffer depth attachment to the default framebuffer's depth attachment,
-        // then continue with rendering. This approach is descried in the LearnOpenGL Deferred Shading chapter. But, unfortunately 
-        // WebGL does not seem to allow us to manually copy data into the default depth attachment, thus we have to work around this.
-        // Instead, we will setup an intermediate framebuffer where we can copy the G buffer depth attachment to. We will also copy the
-        // result of the post processing color attachment to the intermediate framebuffer's main color attachment. Then we can render to
-        // the intermediate framebuffer and write the final result in one last pass to the screen.
-        {
-            FrameBuffer.copyColor(gl, renderer.readBuffer, forwardBuffer, 0);
-            FrameBuffer.copyDepth(gl, gBuffer, forwardBuffer);
+        renderer.postProcessingPass(() => {
+            // Just render the post processing shaders that we added to the renderer earlier
+            renderer.renderPostProcessingPipeline();
+        });
         
-            forwardBuffer.bind();
-            renderer.enableDepthTesting();
-
+        renderer.finalForwardPass(() => {
             lightBoxShader.bind(gl);
             for (let i = 0; i < lightBoxes.length; i++) {
                 lightBoxShader.setUniformVec3f(gl, "uLightColor", pointLights[i].color[0], pointLights[i].color[1], pointLights[i].color[2]);
                 lightBoxes[i].draw(gl, lightBoxShader);
             }
-
-            renderer.disableDepthTesting();
-            renderer.bindScreenFramebuffer();
-            renderer.finalShader.bind(gl);
-            forwardColorTarget.bind(gl, 0);
-            renderer.drawFullScreenQuad();
-        }
+        });
     }
     
     /** 
@@ -292,8 +219,8 @@ function main() {
             );
         }
         
-        gBufferShader.bind(gl);
-        gBufferShader.setUniformMat4f(gl, "uView", renderer.camera.getView().data);
+        renderer.gBufferShader.bind(gl);
+        renderer.gBufferShader.setUniformMat4f(gl, "uView", renderer.camera.getView().data);
 
         lightBoxShader.bind(gl);
         lightBoxShader.setUniformMat4f(gl, "uView", renderer.camera.getView().data);
