@@ -43,8 +43,8 @@ function main() {
 
     renderer.addPostProcessingShader(toonShader);
     renderer.addPostProcessingShader(phongShader);
-    renderer.addPostProcessingShader(edgeDetectionShader);
     renderer.addPostProcessingShader(halftoneShader); 
+    renderer.addPostProcessingShader(edgeDetectionShader);
     renderer.addPostProcessingShader(grayScaleShader);
 
     // Menu stuff for the post processing shaders. Will probably refactor later.

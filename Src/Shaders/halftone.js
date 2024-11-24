@@ -19,6 +19,10 @@ export class HalftoneShader {
         uniform float uIntensity;
 
         void main() {
+            float depth = texture(gDepth, vTex).r;
+            if (depth >= 1.0)
+                discard;
+
             vec3 albedo = texture(uPostColor, vTex).rgb;
 
             float luminance = dot(albedo, vec3(0.299, 0.587, 0.114));
