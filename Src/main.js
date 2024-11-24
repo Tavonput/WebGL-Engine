@@ -1,7 +1,7 @@
 import { Renderer } from "./renderer.js";
 import { ShaderProgram } from "./Core/shaders.js";
 import { Mat4 } from "./Math/matrix.js";
-import { Mesh } from "./Core/mesh.js";
+import { Material, Mesh } from "./Core/mesh.js";
 import { Keys, Menu } from "./Core/event.js";
 import { Texture } from "./Core/texture.js";
 import { FrameBuffer } from "./Core/framebuffer.js";
@@ -59,20 +59,24 @@ function main() {
     cube.scale = Mat4.scale(0.8, 0.8, 0.8);
     cube.translation = Mat4.translation(0.4, 0.0, 0.0);
 
+    // Materials
+    let sphereMaterial = new Material(0.2, 1.0, 2.0, 4.0);
+    let cubeMaterial = new Material(0.2, 1.0, 1.0, 2.0);
     let metalTexture = Texture.createFromFile(gl, "../Assets/metal_scale.png");
     let ivyTexture = Texture.createFromFile(gl, "../Assets/ivy_seamless.png");
 
     // G Buffer
     let gBuffer = new FrameBuffer(gl, canvas.width, canvas.height);
+    let gBufferDepthTarget = gBuffer.addDepthAttachment();
     let gBufferPosTarget = gBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_FLOAT);
     let gBufferAlbedoTarget = gBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_INT);
     let gBufferNormalTarget = gBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_FLOAT);
-    let gBufferDepthTarget = gBuffer.addDepthAttachment();
+    let gBufferMaterialTarget = gBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_FLOAT);
 
     // Forward buffer
     let forwardBuffer = new FrameBuffer(gl, canvas.width, canvas.height);
-    let forwardColorTarget = forwardBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_INT);
     let forwardDepthTarget = forwardBuffer.addDepthAttachment();
+    let forwardColorTarget = forwardBuffer.addColorAttachment(FrameBuffer.COLOR_TYPE_INT);
 
     // Lights
     const dirLight = new DirLight([1.0, 1.0, 0.0], [1.0, 1.0, 1.0], 0.5);
@@ -151,8 +155,9 @@ function main() {
             shader.setUniformInt(gl, "gPosition", 0);
             shader.setUniformInt(gl, "gAlbedo", 1);
             shader.setUniformInt(gl, "gNormal", 2);
-            shader.setUniformInt(gl, "gDepth", 3);
-            shader.setUniformInt(gl, "uPostColor", gBuffer.numAttachments);    
+            shader.setUniformInt(gl, "gMaterial", 3)
+            shader.setUniformInt(gl, "gDepth", 4);
+            shader.setUniformInt(gl, "uPostColor", gBuffer.numAttachments);
         }
 
         // G Buffer uniforms
@@ -168,11 +173,6 @@ function main() {
             shader.setUniformVec3f(gl, "uCameraPos",
                 renderer.camera.position[0], renderer.camera.position[1], renderer.camera.position[2]
             );
-
-            shader.setUniformFloat(gl, "uMatAmbient", 0.25);
-            shader.setUniformFloat(gl, "uMatDiffuse", 1.0);
-            shader.setUniformFloat(gl, "uMatSpecular", 2.0);
-            shader.setUniformFloat(gl, "uMatShininess", 4.0);
 
             dirLight.setUniforms(gl, shader, "uDirLight");
             for (let i = 0; i < pointLights.length; i++)
@@ -217,14 +217,17 @@ function main() {
         // Geometry pass
         {
             gBuffer.bind();
+            gBufferShader.bind(gl);
 
             renderer.setClearColor(0.9, 0.9, 0.9, 1.0);
             renderer.clearRenderTargets();
             renderer.enableDepthTesting();
 
+            sphereMaterial.setUniforms(gl, gBufferShader);
             metalTexture.bind(gl, 0);
             sphere.draw(gl, gBufferShader);
 
+            cubeMaterial.setUniforms(gl, gBufferShader);
             ivyTexture.bind(gl, 0);
             cube.draw(gl, gBufferShader);
 
@@ -237,7 +240,8 @@ function main() {
             gBufferPosTarget.bind(gl, 0);
             gBufferAlbedoTarget.bind(gl, 1);
             gBufferNormalTarget.bind(gl, 2);
-            gBufferDepthTarget.bind(gl, 3);
+            gBufferMaterialTarget.bind(gl, 3)
+            gBufferDepthTarget.bind(gl, 4);
             
             // Render the post processing shaders in order
             renderer.renderPostProcessingPipeline(gBuffer, 1, gBuffer.numAttachments);

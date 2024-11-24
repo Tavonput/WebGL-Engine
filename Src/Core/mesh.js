@@ -5,6 +5,34 @@ import { Mat4 } from "../Math/matrix.js";
 const VERTEX_STRIDE = 48;
 
 // ========================================================================================================================
+// Material
+//
+// A structure that holds material information.
+export class Material {
+
+    constructor(ambient = 0.1, diffuse = 1.0, specular = 1.0, shininess = 1.0) {
+        this.ambient = ambient;
+        this.diffuse = diffuse;
+        this.specular = specular;
+        this.shininess = shininess;
+    }
+
+    /**
+     * Set the material uniforms. Assumes that the shader is already bound and the uniform names match what is in the
+     * G buffer shader.
+     * 
+     * @param {WebGL2RenderingContext} gl
+     * @param {ShaderProgram} shader 
+     */
+    setUniforms(gl, shader) {
+        shader.setUniformFloat(gl, "uMatAmbient", this.ambient);
+        shader.setUniformFloat(gl, "uMatDiffuse", this.diffuse);
+        shader.setUniformFloat(gl, "uMatSpecular", this.specular);
+        shader.setUniformFloat(gl, "uMatShininess", this.shininess);
+    }
+}
+
+// ========================================================================================================================
 // Mesh Config
 //
 // A structure that hold configuration settings for a mesh such as winding order.
@@ -39,12 +67,12 @@ export class MeshInstance {
      * @param {Mesh} mesh 
      */
     constructor(mesh) {
-        this.mesh  = mesh;
+        this.mesh = mesh;
         this.model = Mat4.identity();
 
-        this.scale       = Mat4.identity();
+        this.scale = Mat4.identity();
         this.translation = Mat4.identity();
-        this.rotation    = Mat4.identity();
+        this.rotation = Mat4.identity();
     }
 
     /**

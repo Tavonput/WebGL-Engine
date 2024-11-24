@@ -13,6 +13,7 @@ export class GrayScaleShader {
         uniform sampler2D gPosition;
         uniform sampler2D gAlbedo;
         uniform sampler2D gNormal;
+        uniform sampler2D gMaterial;
         uniform sampler2D gDepth;
         uniform sampler2D uPostColor;
 
