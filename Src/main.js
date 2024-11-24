@@ -2,7 +2,7 @@ import { Renderer } from "./renderer.js";
 import { ShaderProgram } from "./Core/shaders.js";
 import { Mat4 } from "./Math/matrix.js";
 import { Mesh } from "./Core/mesh.js";
-import { Keys } from "./Core/event.js";
+import { Keys, Menu } from "./Core/event.js";
 import { Texture } from "./Core/texture.js";
 import { FrameBuffer } from "./Core/framebuffer.js";
 
@@ -41,98 +41,19 @@ function main() {
     grayScaleShader.enabled = false;
     phongShader.enabled = false;
 
+    // Post processing shaders are ran in the order they are added
     renderer.addPostProcessingShader(toonShader);
     renderer.addPostProcessingShader(phongShader);
     renderer.addPostProcessingShader(halftoneShader); 
     renderer.addPostProcessingShader(edgeDetectionShader);
     renderer.addPostProcessingShader(grayScaleShader);
 
-    // Menu stuff for the post processing shaders. Will probably refactor later.
-    let currentLightingShader = toonShader;
-    document.getElementById("lightingEnabled").addEventListener("input", (event) => {
-        if (event.target.checked)
-            currentLightingShader.enabled = event.target.checked;
-        else {
-            toonShader.enabled = event.target.checked;
-            phongShader.enabled = event.target.checked;
-        }
-    });
-    document.getElementById("lightingMethod").addEventListener("input", (event) => {
-        if (event.target.value === "toon") {
-            toonShader.enabled = true;
-            currentLightingShader = toonShader;
-            phongShader.enabled = false;
-        }
-        else if (event.target.value === "phong") {
-            phongShader.enabled = true;
-            currentLightingShader = phongShader;
-            toonShader.enabled = false;
-        }
-    });
-
-    document.getElementById("toonSteps").addEventListener("input", (event) => {
-        toonShader.bind(gl);
-        toonShader.setUniformFloat(gl, "uSteps", parseFloat(event.target.value));
-    });
-
-    document.getElementById("edgeDetectionEnabled").addEventListener("input", (event) => {
-        edgeDetectionShader.enabled = event.target.checked;
-    });
-
-    document.getElementById("edgeDetectionType").addEventListener("input", (event) => {
-        edgeDetectionShader.bind(gl);
-        if (event.target.value === "depth")
-            edgeDetectionShader.setUniformInt(gl, "uDetectionType", EdgeDetectionShader.DETECTION_DEPTH);
-        else if (event.target.value === "albedo")
-            edgeDetectionShader.setUniformInt(gl, "uDetectionType", EdgeDetectionShader.DETECTION_ALBEDO);
-    });
-
-    document.getElementById("edgeDetectionColor").addEventListener("input", (event) => {
-        const hexColor = parseInt(event.target.value.slice(1), 16); // Removes the #
-        edgeDetectionShader.bind(gl);
-        
-        // Hex to RGB float
-        edgeDetectionShader.setUniformVec3f(gl, "uOutlineColor",
-            ((hexColor >> 16) & 255) / 255,
-            ((hexColor >> 8) & 255) / 255,
-            (hexColor & 255) / 255,
-        );
-    });
-
-    document.getElementById("halftoneEnabled").addEventListener("input", (event) => {
-        halftoneShader.enabled = event.target.checked;
-    });
-
-    document.getElementById("halftoneSteps").addEventListener("input", (event) => {
-        halftoneShader.bind(gl);
-        halftoneShader.setUniformFloat(gl, "uSteps", parseFloat(event.target.value));
-    });
-
-    document.getElementById("halftoneScale").addEventListener("input", (event) => {
-        halftoneShader.bind(gl);
-        halftoneShader.setUniformFloat(gl, "uScale", parseFloat(event.target.value));
-    });
-
-    document.getElementById("halftoneIntensity").addEventListener("input", (event) => {
-        halftoneShader.bind(gl);
-        halftoneShader.setUniformFloat(gl, "uIntensity", parseFloat(event.target.value));
-    });
-
-    document.getElementById("grayScaleEnabled").addEventListener("input", (event) => {
-        grayScaleShader.enabled = event.target.checked;
-    });
-
-    document.getElementById("grayScaleSteps").addEventListener("input", (event) => {
-        grayScaleShader.bind(gl);
-        grayScaleShader.setUniformFloat(gl, "uSteps", parseFloat(event.target.value));
-    });
-    
     // Meshes
     let sphereMesh = Mesh.sphere(gl, 16);
     let sphere = sphereMesh.createInstance();
     sphere.scale = Mat4.scale(0.5, 0.5, 0.5);
     sphere.translation = Mat4.translation(-0.4, 0.0, 0.0);
-    
+
     let cubeMesh = Mesh.cube(gl, 0.5, 0.5, 0.5);
     let cube = cubeMesh.createInstance();
     cube.scale = Mat4.scale(0.8, 0.8, 0.8);
@@ -171,6 +92,51 @@ function main() {
         box.translation = Mat4.translation(data[0][0], data[0][1], data[0][2]);
         lightBoxes.push(box);
     }
+
+    // Lighting menu items
+    let currentLightingShader = toonShader;
+    Menu.addCustomCheckBox("lightingEnabled", (checked) => {
+        if (checked)
+            currentLightingShader.enabled = checked;
+        else {
+            toonShader.enabled = checked;
+            phongShader.enabled = checked;
+        }
+    });
+    Menu.addDropDown("lightingMethod", (method) => {
+        if (method === "toon") {
+            toonShader.enabled = true;
+            currentLightingShader = toonShader;
+            phongShader.enabled = false;
+        }
+        else if (method === "phong") {
+            phongShader.enabled = true;
+            currentLightingShader = phongShader;
+            toonShader.enabled = false;
+        }
+    });
+    Menu.addFloatSlider(gl, toonShader, "toonSteps", "uSteps");
+    
+    // Edge detection menu items
+    Menu.addCheckBox(gl, edgeDetectionShader, "edgeDetectionEnabled");
+    Menu.addDropDown("edgeDetectionType", (value) => {
+        edgeDetectionShader.bind(gl);
+        if (value === "depth")
+            edgeDetectionShader.setUniformInt(gl, "uDetectionType", EdgeDetectionShader.DETECTION_DEPTH);
+        else if (value === "albedo")
+            edgeDetectionShader.setUniformInt(gl, "uDetectionType", EdgeDetectionShader.DETECTION_ALBEDO);
+    });
+    Menu.addColorPicker(gl, edgeDetectionShader, "edgeDetectionColor", "uOutlineColor");
+
+    // Halftone menu items
+    Menu.addCheckBox(gl, halftoneShader, "halftoneEnabled");
+    Menu.addFloatSlider(gl, halftoneShader, "halftoneSteps", "uSteps");
+    Menu.addFloatSlider(gl, halftoneShader, "halftoneScale", "uScale");
+    Menu.addFloatSlider(gl, halftoneShader, "halftoneIntensity", "uIntensity");
+
+    // Grayscale menu items
+    Menu.addCheckBox(gl, grayScaleShader, "grayScaleEnabled");
+    Menu.addFloatSlider(gl, grayScaleShader, "grayScaleSteps", "uSteps");
 
     // ==========
     /** 
