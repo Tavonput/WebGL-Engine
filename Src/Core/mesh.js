@@ -1,8 +1,35 @@
 import { VertexBuffer, IndexBuffer } from "./buffer.js";
 import { ShaderProgram } from "./shaders.js";
-import { Mat4 } from "../Math/matrix.js";
 
 const VERTEX_STRIDE = 48;
+
+// ========================================================================================================================
+// Material
+//
+// A structure that holds material information.
+export class Material {
+
+    constructor(ambient = 0.1, diffuse = 1.0, specular = 1.0, shininess = 1.0) {
+        this.ambient = ambient;
+        this.diffuse = diffuse;
+        this.specular = specular;
+        this.shininess = shininess;
+    }
+
+    /**
+     * Set the material uniforms. Assumes that the shader is already bound and the uniform names match what is in the
+     * G buffer shader.
+     * 
+     * @param {WebGL2RenderingContext} gl
+     * @param {ShaderProgram}          shader 
+     */
+    setUniforms(gl, shader) {
+        shader.setUniformFloat(gl, "uMatAmbient", this.ambient);
+        shader.setUniformFloat(gl, "uMatDiffuse", this.diffuse);
+        shader.setUniformFloat(gl, "uMatSpecular", this.specular);
+        shader.setUniformFloat(gl, "uMatShininess", this.shininess);
+    }
+}
 
 // ========================================================================================================================
 // Mesh Config
@@ -30,8 +57,7 @@ class MeshConfig {
 // ========================================================================================================================
 // Mesh Instance
 //
-// A mesh instance is an object that has a unique model matrix and references a mesh. Drawing a mesh instance updates its
-// model matrix and renders according to its mesh.
+// A mesh instance is an object that has a reference to a mesh and carries a material and texture.
 export class MeshInstance {
     /**
      * Create an instance of a mesh.
@@ -39,12 +65,10 @@ export class MeshInstance {
      * @param {Mesh} mesh 
      */
     constructor(mesh) {
-        this.mesh  = mesh;
-        this.model = Mat4.identity();
+        this.mesh = mesh;
 
-        this.scale       = Mat4.identity();
-        this.translation = Mat4.identity();
-        this.rotation    = Mat4.identity();
+        this.material = null;
+        this.texture = null;
     }
 
     /**
@@ -52,23 +76,9 @@ export class MeshInstance {
      * 
      * @param {WebGL2RenderingContext} gl 
      * @param {ShaderProgram}          program 
-     * @param {boolean}                updateModel
      */
-    draw(gl, program, updateModel = true) {
-        if (updateModel)
-            this.updateModel();
-
-        program.bind(gl);
-        program.setUniformMat4f(gl, "uModel", this.model.data);
-        
+    draw(gl, program) {
         this.mesh.draw(gl, program);
-    }
-
-    /**
-     * Update the model matrix.
-     */
-    updateModel() {
-        this.model = this.translation.mul(this.rotation.mul(this.scale));
     }
 }
 
@@ -78,7 +88,6 @@ export class MeshInstance {
 // A mesh holds the vertex data and indices. Meshes loaded from files are loaded asynchronously with callbacks.
 //
 // TODO:
-// - Not all meshes will the same configurations (such as winding order), so make a mesh config or something.
 // - On parsing, make a method that will interleave the attributes (necessary when we want normals and stuff). 
 export class Mesh {
     /**

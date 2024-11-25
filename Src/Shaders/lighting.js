@@ -14,11 +14,12 @@ export class DirLight {
      * @param {WebGL2RenderingContext} gl 
      * @param {ShaderProgram} program 
      * @param {string} uniformPrefix 
+     * @param {number} idx
      */
-    setUniforms(gl, program, uniformPrefix) {
-        program.setUniformVec3f(gl, `${uniformPrefix}.direction`, this.direction[0], this.direction[1], this.direction[2]);
-        program.setUniformVec3f(gl, `${uniformPrefix}.color`, this.color[0], this.color[1], this.color[2]);
-        program.setUniformFloat(gl, `${uniformPrefix}.intensity`, this.intensity);
+    setUniforms(gl, program, uniformPrefix, idx) {
+        program.setUniformVec3f(gl, `${uniformPrefix}[${idx}].direction`, this.direction[0], this.direction[1], this.direction[2]);
+        program.setUniformVec3f(gl, `${uniformPrefix}[${idx}].color`, this.color[0], this.color[1], this.color[2]);
+        program.setUniformFloat(gl, `${uniformPrefix}[${idx}].intensity`, this.intensity);
     }
 }
 
@@ -47,6 +48,7 @@ export class PointLight {
 
 export class PhongShader {
 
+    static MAX_DIR_LIGHTS   = 8;
     static MAX_POINT_LIGHTS = 256;
 
     /**
@@ -56,6 +58,7 @@ export class PhongShader {
     `   #version 300 es
         precision mediump float;
 
+        #define MAX_DIR_LIGHTS   8
         #define MAX_POINT_LIGHTS 256
 
         in vec2 vTex;
@@ -77,19 +80,16 @@ export class PhongShader {
         uniform sampler2D gPosition;
         uniform sampler2D gAlbedo;
         uniform sampler2D gNormal;
+        uniform sampler2D gMaterial;
         uniform sampler2D gDepth;
         uniform sampler2D uPostColor;
 
         uniform vec3 uCameraPos;
 
-        uniform DirLight uDirLight;
+        uniform DirLight uDirLights[MAX_DIR_LIGHTS];
         uniform PointLight uPointLights[MAX_POINT_LIGHTS];
+        uniform int uNumDirLights;
         uniform int uNumPointLights;
-
-        uniform float uMatAmbient;
-        uniform float uMatDiffuse;
-        uniform float uMatSpecular;
-        uniform float uMatShininess;
 
         vec3 computeDiffuse(vec3 N, vec3 L, vec3 lightColor, float diff) {
             return diff * lightColor * max(dot(N, L), 0.0);
@@ -127,17 +127,25 @@ export class PhongShader {
             if (depth >= 1.0)
                 discard;
 
+            float matAmbient = texture(gMaterial, vTex).r;
+            float matDiffuse = texture(gMaterial, vTex).g;
+            float matSpecular = texture(gMaterial, vTex).b;
+            float matShininess = texture(gMaterial, vTex).a;
+
             vec3 albedo = texture(gAlbedo, vTex).rgb;
             vec3 worldPos = texture(gPosition, vTex).xyz;
             vec3 N = texture(gNormal, vTex).xyz;
             vec3 V = normalize(uCameraPos - worldPos);
 
-            vec3 lighting = computeDirLight(uDirLight, N, V, uMatDiffuse, uMatSpecular, uMatShininess);
+            vec3 lighting = vec3(0.0);
+
+            for (int i = 0; i < uNumDirLights; i++)
+                lighting += computeDirLight(uDirLights[i], N, V, matDiffuse, matSpecular, matShininess);
 
             for (int i = 0; i < uNumPointLights; i++)
-                lighting += computePointLight(uPointLights[i], N, V, worldPos, uMatDiffuse, uMatSpecular, uMatShininess);
+                lighting += computePointLight(uPointLights[i], N, V, worldPos, matDiffuse, matSpecular, matShininess);
             
-            vec3 ambient = uMatAmbient * albedo;
+            vec3 ambient = matAmbient * albedo;
 
             outColor = vec4((ambient + lighting), 1.0);
         }
@@ -146,6 +154,7 @@ export class PhongShader {
 
 export class ToonShader {
 
+    static MAX_DIR_LIGHTS   = 8;
     static MAX_POINT_LIGHTS = 256;
 
     /**
@@ -155,6 +164,7 @@ export class ToonShader {
     `   #version 300 es
         precision mediump float;
 
+        #define MAX_DIR_LIGHTS   8
         #define MAX_POINT_LIGHTS 256
 
         in vec2 vTex;
@@ -176,19 +186,16 @@ export class ToonShader {
         uniform sampler2D gPosition;
         uniform sampler2D gAlbedo;
         uniform sampler2D gNormal;
+        uniform sampler2D gMaterial;
         uniform sampler2D gDepth;
         uniform sampler2D uPostColor;
 
         uniform vec3 uCameraPos;
 
-        uniform DirLight uDirLight;
+        uniform DirLight uDirLights[MAX_DIR_LIGHTS];
         uniform PointLight uPointLights[MAX_POINT_LIGHTS];
+        uniform int uNumDirLights;
         uniform int uNumPointLights;
-
-        uniform float uMatAmbient;
-        uniform float uMatDiffuse;
-        uniform float uMatSpecular;
-        uniform float uMatShininess;
 
         uniform float uSteps;
 
@@ -234,17 +241,25 @@ export class ToonShader {
             if (depth >= 1.0)
                 discard;
 
+            float matAmbient = texture(gMaterial, vTex).r;
+            float matDiffuse = texture(gMaterial, vTex).g;
+            float matSpecular = texture(gMaterial, vTex).b;
+            float matShininess = texture(gMaterial, vTex).a;
+
             vec3 albedo = texture(gAlbedo, vTex).rgb;
             vec3 worldPos = texture(gPosition, vTex).xyz;
             vec3 N = texture(gNormal, vTex).xyz;
             vec3 V = normalize(uCameraPos - worldPos);
 
-            vec3 lighting = computeDirLight(uDirLight, N, V, uMatDiffuse, uMatSpecular, uMatShininess, uSteps);
+            vec3 lighting = vec3(0.0);
+
+            for (int i = 0; i < uNumDirLights; i++)
+                lighting += computeDirLight(uDirLights[i], N, V, matDiffuse, matSpecular, matShininess, uSteps);
 
             for (int i = 0; i < uNumPointLights; i++)
-                lighting += computePointLight(uPointLights[i], N, V, worldPos, uMatDiffuse, uMatSpecular, uMatShininess, uSteps);
+                lighting += computePointLight(uPointLights[i], N, V, worldPos, matDiffuse, matSpecular, matShininess, uSteps);
             
-            vec3 ambient = uMatAmbient * albedo;
+            vec3 ambient = matAmbient * albedo;
 
             outColor = vec4((ambient + lighting), 1.0);
         }

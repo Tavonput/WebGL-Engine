@@ -42,13 +42,20 @@ export class GBufferShader {
         layout (location = 0) out vec3 gPosition;
         layout (location = 1) out vec3 gAlbedo;
         layout (location = 2) out vec3 gNormal;
+        layout (location = 3) out vec4 gMaterial;
 
-        uniform sampler2D tex0;
+        uniform sampler2D uAlbedo;
+
+        uniform float uMatAmbient;
+        uniform float uMatDiffuse;
+        uniform float uMatSpecular;
+        uniform float uMatShininess;
 
         void main() {
             gPosition = vWorldPos;
-            gAlbedo = texture(tex0, vTex).rgb;
+            gAlbedo = texture(uAlbedo, vTex).rgb;
             gNormal = normalize(vNormal);
+            gMaterial = vec4(uMatAmbient, uMatDiffuse, uMatSpecular, uMatShininess);
         }
     `;
 }

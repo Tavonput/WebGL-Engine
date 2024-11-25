@@ -89,6 +89,15 @@ export class Mat4 {
         ]);
     }
 
+    /**
+     * Return the translation matrix for (x, y, z).
+     * 
+     * @param {number} dx 
+     * @param {number} dy 
+     * @param {number} dz 
+     * 
+     * @returns {Mat4}
+     */
     static translation(dx, dy, dz) {
         return new Mat4([
             1, 0, 0, dx,
@@ -98,6 +107,15 @@ export class Mat4 {
         ]);
     }
 
+    /**
+     * Return the scale matrix from (x, y, z).
+     * 
+     * @param {number} sx 
+     * @param {number} sy 
+     * @param {number} sz 
+     * 
+     * @returns {Mat4}
+     */
     static scale(sx, sy, sz) {
         return new Mat4([
             sx, 0,  0,  0,
