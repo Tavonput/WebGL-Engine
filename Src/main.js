@@ -1,12 +1,12 @@
 import { Renderer } from "./renderer.js";
 import { ShaderProgram } from "./Core/shaders.js";
-import { Mat4 } from "./Math/matrix.js";
+import { Vec4 } from "./Math/vector.js";
 import { Material, Mesh } from "./Core/mesh.js";
 import { Keys, Menu } from "./Core/event.js";
 import { Texture } from "./Core/texture.js";
-import { FrameBuffer } from "./Core/framebuffer.js";
+import { SceneGraph, Node } from "./scene.js";
+import { Camera } from "./camera.js";
 
-import { GBufferShader } from "./Shaders/geometry.js";
 import { PhongShader, ToonShader, DirLight, PointLight } from "./Shaders/lighting.js";
 import { LightBoxShader } from "./Shaders/light_box.js";
 import { PostShader } from "./Shaders/post.js";
@@ -48,42 +48,6 @@ function main() {
     renderer.addPostProcessingShader(edgeDetectionShader);
     renderer.addPostProcessingShader(grayScaleShader);
 
-    // Meshes
-    let sphereMesh = Mesh.sphere(gl, 16);
-    let sphere = sphereMesh.createInstance();
-    sphere.scale = Mat4.scale(0.5, 0.5, 0.5);
-    sphere.translation = Mat4.translation(-0.4, 0.0, 0.0);
-
-    let cubeMesh = Mesh.cube(gl, 0.5, 0.5, 0.5);
-    let cube = cubeMesh.createInstance();
-    cube.scale = Mat4.scale(0.8, 0.8, 0.8);
-    cube.translation = Mat4.translation(0.4, 0.0, 0.0);
-
-    // Materials
-    let sphereMaterial = new Material(0.2, 1.0, 2.0, 4.0);
-    let cubeMaterial = new Material(0.2, 1.0, 1.0, 2.0);
-    let metalTexture = Texture.createFromFile(gl, "../Assets/metal_scale.png");
-    let ivyTexture = Texture.createFromFile(gl, "../Assets/ivy_seamless.png");
-
-    // Lights
-    const dirLight = new DirLight([1.0, 1.0, 0.0], [1.0, 1.0, 1.0], 0.5);
-    const pointLightData = [
-        // Position          Color            Intensity
-        [[-0.7, -0.7, -0.7], [1.0, 0.0, 0.0], 0.5],
-        [[-0.7,  0.7,  0.0], [0.0, 0.0, 1.0], 0.5],
-        [[ 0.7,  0.0,  0.7], [0.0, 1.0, 0.0], 0.3],
-    ];
-    let pointLights = []
-    let lightBoxes = []
-    for (const data of pointLightData) {
-        pointLights.push(new PointLight(data[0], data[1], data[2]));
-
-        let box = cubeMesh.createInstance();
-        box.scale = Mat4.scale(0.2, 0.2, 0.2);
-        box.translation = Mat4.translation(data[0][0], data[0][1], data[0][2]);
-        lightBoxes.push(box);
-    }
-
     // Lighting menu items
     let currentLightingShader = toonShader;
     Menu.addCustomCheckBox("lightingEnabled", (checked) => {
@@ -107,7 +71,7 @@ function main() {
         }
     });
     Menu.addFloatSlider(gl, toonShader, "toonSteps", "uSteps");
-    
+
     // Edge detection menu items
     Menu.addCheckBox(gl, edgeDetectionShader, "edgeDetectionEnabled");
     Menu.addDropDown("edgeDetectionType", (value) => {
@@ -129,6 +93,73 @@ function main() {
     Menu.addCheckBox(gl, grayScaleShader, "grayScaleEnabled");
     Menu.addFloatSlider(gl, grayScaleShader, "grayScaleSteps", "uSteps");
 
+    // Meshes and objects
+    let sphereMesh = Mesh.sphere(gl, 16);
+    let cubeMesh = Mesh.cube(gl, 0.5, 0.5, 0.5);
+
+    let sphere = sphereMesh.createInstance();
+    sphere.material = new Material(0.2, 1.0, 2.0, 4.0);
+    sphere.texture = Texture.createFromFile(gl, "../Assets/metal_scale.png");
+
+    let mainCube = cubeMesh.createInstance();
+    mainCube.material = new Material(0.2, 1.0, 1.0, 2.0);
+    mainCube.texture = Texture.createFromFile(gl, "../Assets/ivy_seamless.png");
+
+    let lightCube = cubeMesh.createInstance();
+
+    // Scene graph
+    // root
+    //   camera
+    //   sphere
+    //   cube
+    //   dir light
+    //
+    //   point light
+    //     box
+    //   point light
+    //     box
+    //   ...
+    const scene = new SceneGraph();
+
+    let gCamera = scene.root.addChild(Node.TYPE_CAMERA);
+    gCamera.data = new Camera(canvas.width / canvas.height);
+    gCamera.position = new Vec4(0.0, 0.0, -1.0);
+
+    let gSphere = scene.root.addChild(Node.TYPE_MESH_GEOMETRY);
+    gSphere.data = sphere;
+    gSphere.position = new Vec4(-0.4, 0.0, 0.0);
+    gSphere.scale = new Vec4(0.5, 0.5, 0.5);
+
+    let gCube = scene.root.addChild(Node.TYPE_MESH_GEOMETRY);
+    gCube.data = mainCube;
+    gCube.position = new Vec4(0.4, 0.0, 0.0);
+    gCube.scale = new Vec4(0.8, 0.8, 0.8);
+
+    let gDirLight = scene.root.addChild(Node.TYPE_LIGHT);
+    gDirLight.data = new DirLight([1.0, 1.0, 0.0], [1.0, 1.0, 1.0], 0.5);
+
+    const pointLightData = [
+        // Position          Color            Intensity
+        [[-0.7, -0.7, -0.7], [1.0, 0.0, 0.0], 0.5],
+        [[-0.7,  0.7,  0.0], [0.0, 0.0, 1.0], 0.5],
+        [[ 0.7,  1.0,  0.7], [0.0, 1.0, 0.0], 0.3],
+    ];
+
+    let gPointLights = []
+    for (const data of pointLightData) {
+        let light = scene.root.addChild(Node.TYPE_LIGHT);
+        light.data = new PointLight(data[0], data[1], data[2]);
+        light.position = new Vec4(data[0][0], data[0][1], data[0][2]);
+        
+        let box = light.addChild(Node.TYPE_MESH_FORWARD);
+        box.data = lightCube;
+        box.scale = new Vec4(0.2, 0.2, 0.2);
+
+        gPointLights.push(light);
+    }
+
+    scene.generateRenderJobs();
+
     // ==========
     /** 
      * Ran by the renderer once before rendering starts.
@@ -136,19 +167,35 @@ function main() {
      * @param {Renderer} renderer  
      */
     function onInit(renderer) {
+        let camera = scene.cameras[0];
+        let cameraPos = camera.getPosition();
+
+        // G buffer uniforms
+        renderer.gBufferShader.bind(gl);
+        renderer.gBufferShader.setUniformMat4f(gl, "uProjection", camera.getProjection().data);
+        renderer.gBufferShader.setUniformMat4f(gl, "uView", camera.getView().data);
+
         // Lighting uniforms
         for (const shader of [phongShader, toonShader]) {
             shader.bind(gl);
 
-            shader.setUniformVec3f(gl, "uCameraPos",
-                renderer.camera.position[0], renderer.camera.position[1], renderer.camera.position[2]
-            );
+            shader.setUniformVec3f(gl, "uCameraPos", cameraPos.x, cameraPos.y, cameraPos.z);
 
-            dirLight.setUniforms(gl, shader, "uDirLight");
-            for (let i = 0; i < pointLights.length; i++)
-                pointLights[i].setUniforms(gl, shader, "uPointLights", i);
+            let numDirLights = 0;
+            let numPointLights = 0;
+            for (const light of scene.lights) {
+                if (light.light instanceof DirLight) {
+                    light.light.setUniforms(gl, shader, "uDirLights", numDirLights);
+                    numDirLights++;
+                }
+                else if (light.light instanceof PointLight) {
+                    light.light.setUniforms(gl, shader, "uPointLights", numPointLights);
+                    numPointLights++;
+                }
+            }
 
-            shader.setUniformInt(gl, "uNumPointLights", pointLights.length);
+            shader.setUniformInt(gl, "uNumDirLights", numDirLights);
+            shader.setUniformInt(gl, "uNumPointLights", numPointLights);
         }
         toonShader.setUniformFloat(gl, "uSteps", 3.0);
         
@@ -170,8 +217,8 @@ function main() {
 
         // Light box uniforms
         lightBoxShader.bind(gl);
-        lightBoxShader.setUniformMat4f(gl, "uProjection", renderer.camera.projection.data);
-        lightBoxShader.setUniformMat4f(gl, "uView", renderer.camera.getView().data);
+        lightBoxShader.setUniformMat4f(gl, "uProjection", camera.getProjection().data);
+        lightBoxShader.setUniformMat4f(gl, "uView", camera.getView().data);
     }
 
     /**
@@ -180,14 +227,24 @@ function main() {
      * @param {Renderer} renderer 
      */
     function onRender(renderer) {
-        renderer.geometryPass(() => {
-            sphereMaterial.setUniforms(gl, renderer.gBufferShader);
-            metalTexture.bind(gl, 0);
-            sphere.draw(gl, renderer.gBufferShader);
+        scene.generateRenderJobs();
 
-            cubeMaterial.setUniforms(gl, renderer.gBufferShader);
-            ivyTexture.bind(gl, 0);
-            cube.draw(gl, renderer.gBufferShader);
+        // TODO:
+        // - This geometry pass probably doesn't change, so maybe this code can be put in the renderer class.
+        // - It would be nice to sort the geometry meshes by material first before rendering.
+        renderer.geometryPass(() => {
+            renderer.gBufferShader.bind(gl);
+            for (const geometryMesh of scene.geometryMeshes) {
+                renderer.gBufferShader.setUniformMat4f(gl, "uModel", geometryMesh.model.data);
+
+                if (geometryMesh.mesh.material !== null)
+                    geometryMesh.mesh.material.setUniforms(gl, renderer.gBufferShader);
+
+                if (geometryMesh.mesh.texture !== null)
+                    geometryMesh.mesh.texture.bind(gl, 0);
+
+                geometryMesh.mesh.draw(gl, renderer.gBufferShader);
+            }
         });
 
         renderer.postProcessingPass(() => {
@@ -197,9 +254,10 @@ function main() {
         
         renderer.finalForwardPass(() => {
             lightBoxShader.bind(gl);
-            for (let i = 0; i < lightBoxes.length; i++) {
-                lightBoxShader.setUniformVec3f(gl, "uLightColor", pointLights[i].color[0], pointLights[i].color[1], pointLights[i].color[2]);
-                lightBoxes[i].draw(gl, lightBoxShader);
+            for (const [i, forwardMesh] of scene.forwardMeshes.entries()) {
+                lightBoxShader.setUniformMat4f(gl, "uModel", forwardMesh.model.data);
+                lightBoxShader.setUniformVec3f(gl, "uLightColor", pointLightData[i][1][0], pointLightData[i][1][1], pointLightData[i][1][2]);
+                forwardMesh.mesh.draw(gl, lightBoxShader);
             }
         });
     }
@@ -210,20 +268,21 @@ function main() {
      * @param {Renderer} renderer 
      */
     function onUpdate(renderer) {
-        renderer.updateCamera(keyboard);
+        scene.updateNode(gCamera, keyboard, renderer.deltaTimeUpdate);
+        
+        let camera = scene.cameras[0];
 
+        let cameraPos = camera.getPosition();
         for (const shader of [phongShader, toonShader]) {
             shader.bind(gl);
-            shader.setUniformVec3f(gl, "uCameraPos",
-                renderer.camera.position[0], renderer.camera.position[1], renderer.camera.position[2]
-            );
+            shader.setUniformVec3f(gl, "uCameraPos", cameraPos.x, cameraPos.y, cameraPos.z);
         }
         
         renderer.gBufferShader.bind(gl);
-        renderer.gBufferShader.setUniformMat4f(gl, "uView", renderer.camera.getView().data);
+        renderer.gBufferShader.setUniformMat4f(gl, "uView", camera.getView().data);
 
         lightBoxShader.bind(gl);
-        lightBoxShader.setUniformMat4f(gl, "uView", renderer.camera.getView().data);
+        lightBoxShader.setUniformMat4f(gl, "uView", camera.getView().data);
     }
     // ==========
 

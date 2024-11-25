@@ -13,23 +13,24 @@ import { PostShader } from "./Shaders/post.js";
 // Each callback is passed a reference to the renderer instance. The renderer will call onInit once before the rendering
 // starts, onRender every render update, and onUpdate ever "game" update.
 //
-// The renderer is broken up into three main render passes: geometry pass, post processing pass, and final forward pass.
+// The renderer is broken up into three main render passes: Geometry Pass -> Post Processing Pass -> Final Forward Pass.
 // Geometry Pass:
-//     As described in traditional deferred shading, the geometry pass renders all of the geometry in the seen and stores
-//     final visible pixel information in the G buffer. Our G buffer contains 5 targets defined in this order:
+//     As described in traditional deferred shading, the geometry pass renders all of the geometry in the scene and stores
+//     the final visible pixel information in the G buffer. Our G buffer contains 5 targets defined in this order:
 //     - World Position
 //     - Albedo
 //     - Normal
-//     - Material (ambient, diffuse, specular)
+//     - Material (ambient, diffuse, specular, shininess)
 //     - Depth
 //     thus every shader using the G buffer output (the post processing shaders) must match the G buffer format.
 // Post Processing Pass:
 //     The post processing is done sequentially with a ping-pong approach, thus the order in which the user adds their
 //     post processing shaders to the renderer will be the rendering order. All post processing shaders defined by the
-//     user must have the exact G buffer for the first uniform sampler2D slots. The next uniform sampler2D (the one
+//     user must have the exact G buffer format for the first uniform sampler2D slots. The next uniform sampler2D (the one
 //     right after the G buffer uniforms) must be defined for the color output of the previous post processing shader.
 // Final Forward Pass:
-//     This pass is used for any addition rendering that needs to be done after post processing.
+//     This pass is used for any addition rendering that needs to be done after post processing. It will start will the
+//     depth buffer from the geometry pass.
 //
 // Note on the final forward pass. Usually we would just copy the G buffer depth attachment to the default framebuffer's
 // depth attachment, then continue with rendering. This approach is descried in the LearnOpenGL Deferred Shading chapter.
@@ -58,9 +59,6 @@ export class Renderer {
         this.onInit = null;
         this.onRender = null;
         this.onUpdate = null;
-
-        this.camera = new Camera(width / height);
-        this.camera.position = [0.0, 0.0, -1.0];
 
         this.updatesPerSecond = 60;
 
@@ -114,7 +112,6 @@ export class Renderer {
         }
 
         // Init
-        this.initializeGBuffer();
         this.initializePostProcessingShaders();
         this.onInit(this);
 
@@ -251,63 +248,6 @@ export class Renderer {
     }
 
     /**
-     * Update the camera given the current state of the keyboard.
-     * 
-     * @param {Keys} keyboard 
-     */
-    updateCamera(keyboard) {
-        let dx = 0, dy = 0, dz  = 0;
-        let dr = 0, dp = 0, dyw = 0;
-
-        keyboard.getAllKeysDown().forEach((code) => {
-            switch (code) {
-                // Orientation
-                case "ArrowUp":
-                    dp += this.deltaTimeUpdate;
-                    break;
-                case "ArrowDown":
-                    dp -= this.deltaTimeUpdate;
-                    break;
-                case "ArrowLeft":
-                    dyw -= this.deltaTimeUpdate;
-                    break;
-                case "ArrowRight":
-                    dyw += this.deltaTimeUpdate;
-                    break;
-                case "KeyQ":
-                    dr -= this.deltaTimeUpdate;
-                    break;
-                case "KeyE":
-                    dr += this.deltaTimeUpdate;
-                    break;
-                
-                // Position
-                case "KeyW":
-                    dz += this.deltaTimeUpdate;
-                    break;
-                case "KeyA":
-                    dx -= this.deltaTimeUpdate;
-                    break;
-                case "KeyS":
-                    dz -= this.deltaTimeUpdate;
-                    break;
-                case "KeyD":
-                    dx += this.deltaTimeUpdate;
-                    break;
-                case "Space":
-                    dy += this.deltaTimeUpdate;
-                    break;
-                case "KeyC":
-                    dy -= this.deltaTimeUpdate;
-                    break;
-            }
-        })
-
-        this.camera.updatePosition(dx, dy, dz);
-        this.camera.updateOrientation(dr, dp, dyw);
-    }
-
-    /**
      * Add a shader to the post processing pipeline.
      * 
      * @param {ShaderProgram} shader 
@@ -338,15 +278,6 @@ export class Renderer {
 
     disableDepthTesting() {
         this.gl.disable(this.gl.DEPTH_TEST);
-    }
-
-    /**
-     * Set the G buffer projection and view uniforms.
-     */
-    initializeGBuffer() {
-        this.gBufferShader.bind(this.gl);
-        this.gBufferShader.setUniformMat4f(this.gl, "uProjection", this.camera.projection.data);
-        this.gBufferShader.setUniformMat4f(this.gl, "uView", this.camera.getView().data);
     }
 
     /**
