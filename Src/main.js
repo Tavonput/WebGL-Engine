@@ -1,6 +1,7 @@
 import { Renderer } from "./renderer.js";
 import { ShaderProgram } from "./Core/shaders.js";
 import { Vec4 } from "./Math/vector.js";
+import { Mat4 } from "./Math/matrix.js";
 import { Material, Mesh } from "./Core/mesh.js";
 import { Keys, Menu } from "./Core/event.js";
 import { Texture } from "./Core/texture.js";
@@ -13,6 +14,7 @@ import { PostShader } from "./Shaders/post.js";
 import { EdgeDetectionShader } from "./Shaders/edge_detection.js";
 import { GrayScaleShader } from "./Shaders/grayscale.js";
 import { HalftoneShader } from "./Shaders/halftone.js";
+import { SkyboxShaders } from "./Shaders/skybox.js";
 
 // ========================================================================================================================
 // Main
@@ -37,6 +39,42 @@ function main() {
     let edgeDetectionShader = new ShaderProgram(gl, PostShader.vertSource, EdgeDetectionShader.fragSource);
     let grayScaleShader = new ShaderProgram(gl, PostShader.vertSource, GrayScaleShader.fragSource);
     let halftoneShader = new ShaderProgram(gl, PostShader.vertSource, HalftoneShader.fragSource);
+    let skyboxShader = new ShaderProgram (gl, SkyboxShaders.vertSource, SkyboxShaders.fragSource );
+
+    // Load Cubemap Textures
+    let cubemapTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubemapTexture);
+
+    const faces = [
+        { target: gl.TEXTURE_CUBE_MAP_POSITIVE_X, url: '../Assets/skybox/right.jpg' }, // right
+        { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_X, url: '../Assets/skybox/left.jpg' },  // left
+        { target: gl.TEXTURE_CUBE_MAP_POSITIVE_Y, url: '../Assets/skybox/top.jpg' },   // top
+        { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, url: '../Assets/skybox/bottom.jpg' }, // bottom
+        { target: gl.TEXTURE_CUBE_MAP_POSITIVE_Z, url: '../Assets/skybox/front.jpg' },  // front
+        { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, url: '../Assets/skybox/back.jpg' },   // back
+    ];
+
+    let imagesLoaded = 0;
+
+    faces.forEach((face) => {
+        const { target, url } = face;
+        const image = new Image();
+        image.onload = function() {
+            gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubemapTexture);
+            gl.texImage2D(target, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+            imagesLoaded++;
+            if (imagesLoaded === 6) {
+                gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
+            }
+        };
+        image.src = url;
+    });
+
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
 
     grayScaleShader.enabled = false;
     phongShader.enabled = false;
@@ -96,6 +134,7 @@ function main() {
     // Meshes and objects
     let sphereMesh = Mesh.sphere(gl, 16);
     let cubeMesh = Mesh.cube(gl, 0.5, 0.5, 0.5);
+    let skyboxMesh = Mesh.cube(gl, 2, 2, 2 );
 
     let sphere = sphereMesh.createInstance();
     sphere.material = new Material(0.2, 1.0, 2.0, 4.0);
@@ -219,6 +258,16 @@ function main() {
         lightBoxShader.bind(gl);
         lightBoxShader.setUniformMat4f(gl, "uProjection", camera.getProjection().data);
         lightBoxShader.setUniformMat4f(gl, "uView", camera.getView().data);
+
+        // Skybox uniform
+        let skyboxview = new Mat4(camera.getView().data.slice());
+        skyboxview.data[3] = 0;
+        skyboxview.data[7] = 0;
+        skyboxview.data[11] = 0;
+
+        skyboxShader.bind(gl);
+        skyboxShader.setUniformMat4f(gl, "uProjection", camera.getProjection().data);
+        skyboxShader.setUniformMat4f(gl, "uView", skyboxview.data);
     }
 
     /**
@@ -259,7 +308,20 @@ function main() {
                 lightBoxShader.setUniformVec3f(gl, "uLightColor", pointLightData[i][1][0], pointLightData[i][1][1], pointLightData[i][1][2]);
                 forwardMesh.mesh.draw(gl, lightBoxShader);
             }
+            //draw skybox
+            gl.disable(gl.CULL_FACE);
+            gl.depthFunc(gl.LEQUAL);
+            skyboxShader.bind(gl);
+            gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubemapTexture);
+            skyboxMesh.vertexBuffer.bind(gl);
+            skyboxMesh.indexBuffer.bind(gl);
+            skyboxMesh.indexBuffer.draw(gl);
+            gl.depthFunc(gl.LESS);
+            gl.enable(gl.CULL_FACE);
+
+
         });
+
     }
     
     /** 
@@ -283,6 +345,15 @@ function main() {
 
         lightBoxShader.bind(gl);
         lightBoxShader.setUniformMat4f(gl, "uView", camera.getView().data);
+
+        // Skybox uniform
+        let skyboxview = new Mat4(camera.getView().data.slice());
+        skyboxview.data[3] = 0;
+        skyboxview.data[7] = 0;
+        skyboxview.data[11] = 0;
+
+        skyboxShader.bind(gl);
+        skyboxShader.setUniformMat4f(gl, "uView", skyboxview.data);
     }
     // ==========
 
