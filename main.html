@@ -15,7 +15,8 @@
             display: flex;
             margin: 0;
             font-family: Arial, sans-serif;
-            color: #FFFFFF
+            color: #FFFFFF;
+            background-color: #121212;
         }
 
         #menu {
@@ -35,6 +36,12 @@
         }
 
         input[type="checkbox"] {
+            margin-top: 5px;
+            display: block;
+            accent-color: #BB86FC;
+        }
+
+        input[type="range"] {
             margin-top: 5px;
             display: block;
             accent-color: #BB86FC;
@@ -72,6 +79,10 @@
             <br>
             <label for="toonSteps">Toon Steps:</label>
             <input type="range" id="toonSteps" min="2.0" max="20.0" step="1.0" value="3.0">
+
+            <br>
+            <label for="lightPosition">Light Position:</label>
+            <input type="range" id="lightPosition" min="-1.0" max="1.0" step="0.1" value="-0.7">
         </div>
 
         <div class="section">
@@ -127,7 +138,8 @@
 
     </div>
 
-    <canvas id="the-canvas" width="800" height="600"></canvas>
+    <!-- 1500x900 -->
+    <canvas id="the-canvas" width="1500" height="900"></canvas> 
     <script type="module" src="Src/main.js"></script>
 </body>
 

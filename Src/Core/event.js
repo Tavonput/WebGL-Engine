@@ -112,6 +112,18 @@ export class Menu {
     }
 
     /**
+     * Add a custom float slider.
+     * 
+     * @param {string} elementId 
+     * @param {function} callback
+     */
+    static addCustomFloatSlider(elementId, callback) {
+        document.getElementById(elementId).addEventListener("input", (event) => {
+            callback(event.target.value);
+        });
+    }
+
+    /**
      * Add a shader color picker.
      * 
      * @param {WebGL2RenderingContext} gl

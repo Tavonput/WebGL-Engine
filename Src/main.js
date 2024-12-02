@@ -15,6 +15,7 @@ import { EdgeDetectionShader } from "./Shaders/edge_detection.js";
 import { GrayScaleShader } from "./Shaders/grayscale.js";
 import { HalftoneShader } from "./Shaders/halftone.js";
 import { SkyboxShaders } from "./Shaders/skybox.js";
+import { MirrorShader } from "./Shaders/mirror.js";
 
 // ========================================================================================================================
 // Main
@@ -39,7 +40,8 @@ function main() {
     let edgeDetectionShader = new ShaderProgram(gl, PostShader.vertSource, EdgeDetectionShader.fragSource);
     let grayScaleShader = new ShaderProgram(gl, PostShader.vertSource, GrayScaleShader.fragSource);
     let halftoneShader = new ShaderProgram(gl, PostShader.vertSource, HalftoneShader.fragSource);
-    let skyboxShader = new ShaderProgram (gl, SkyboxShaders.vertSource, SkyboxShaders.fragSource );
+    let skyboxShader = new ShaderProgram(gl, SkyboxShaders.vertSource, SkyboxShaders.fragSource);
+    let mirrorShader = new ShaderProgram(gl, MirrorShader.vertSource, MirrorShader.fragSource);
 
     // Load Cubemap Textures
     let cubemapTexture = gl.createTexture();
@@ -134,7 +136,9 @@ function main() {
     // Meshes and objects
     let sphereMesh = Mesh.sphere(gl, 16);
     let cubeMesh = Mesh.cube(gl, 0.5, 0.5, 0.5);
-    let skyboxMesh = Mesh.cube(gl, 2, 2, 2 );
+    let skyboxMesh = Mesh.cube(gl, 2, 2, 2);
+    
+    let mirrorCubeMesh = Mesh.cube(gl, 0.5, 0.5, 0.5);
 
     let sphere = sphereMesh.createInstance();
     sphere.material = new Material(0.2, 1.0, 2.0, 4.0);
@@ -164,15 +168,37 @@ function main() {
     gCamera.data = new Camera(canvas.width / canvas.height);
     gCamera.position = new Vec4(0.0, 0.0, -1.0);
 
-    let gSphere = scene.root.addChild(Node.TYPE_MESH_GEOMETRY);
-    gSphere.data = sphere;
-    gSphere.position = new Vec4(-0.4, 0.0, 0.0);
-    gSphere.scale = new Vec4(0.5, 0.5, 0.5);
+    const rows = 20;
+    const cols = 20;
+    const spacing = 0.25;
 
-    let gCube = scene.root.addChild(Node.TYPE_MESH_GEOMETRY);
-    gCube.data = mainCube;
-    gCube.position = new Vec4(0.4, 0.0, 0.0);
-    gCube.scale = new Vec4(0.8, 0.8, 0.8);
+    const xOffset = (cols - 1) * spacing * 0.5;
+    const zOffset = (rows - 1) * spacing * 0.5;
+
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            let gSphere = scene.root.addChild(Node.TYPE_MESH_GEOMETRY);
+            gSphere.data = sphere;
+
+            gSphere.position = new Vec4(
+                col * spacing - xOffset,
+                0.0,
+                row * spacing - zOffset,
+            );
+
+            gSphere.scale = new Vec4(0.2, 0.2, 0.2);
+        }
+    }
+
+    // let gSphere = scene.root.addChild(Node.TYPE_MESH_GEOMETRY);
+    // gSphere.data = sphere;
+    // gSphere.position = new Vec4(-0.4, 0.0, 0.0);
+    // gSphere.scale = new Vec4(0.5, 0.5, 0.5);
+
+    // let gCube = scene.root.addChild(Node.TYPE_MESH_GEOMETRY);
+    // gCube.data = mainCube;
+    // gCube.position = new Vec4(0.4, 0.0, 0.0);
+    // gCube.scale = new Vec4(0.8, 0.8, 0.8);
 
     let gDirLight = scene.root.addChild(Node.TYPE_LIGHT);
     gDirLight.data = new DirLight([1.0, 1.0, 0.0], [1.0, 1.0, 1.0], 0.5);
@@ -196,6 +222,11 @@ function main() {
 
         gPointLights.push(light);
     }
+
+    Menu.addCustomFloatSlider("lightPosition", (value) => {
+        gPointLights[1].position = new Vec4(value, 0.7, -0.0);
+        gPointLights[1].data.position = [value, 0.7, -0.0];
+    });
 
     scene.generateRenderJobs();
 
@@ -268,6 +299,12 @@ function main() {
         skyboxShader.bind(gl);
         skyboxShader.setUniformMat4f(gl, "uProjection", camera.getProjection().data);
         skyboxShader.setUniformMat4f(gl, "uView", skyboxview.data);
+
+        mirrorShader.bind(gl);
+        mirrorShader.setUniformMat4f(gl, "model", Mat4.identity().data);
+        mirrorShader.setUniformMat4f(gl, "projection", camera.getProjection().data);
+        mirrorShader.setUniformMat4f(gl, "view", camera.getView().data);
+        mirrorShader.setUniformVec3f(gl, "cameraPos", cameraPos.x, cameraPos.y, cameraPos.z);
     }
 
     /**
@@ -308,6 +345,13 @@ function main() {
                 lightBoxShader.setUniformVec3f(gl, "uLightColor", pointLightData[i][1][0], pointLightData[i][1][1], pointLightData[i][1][2]);
                 forwardMesh.mesh.draw(gl, lightBoxShader);
             }
+
+            mirrorShader.bind(gl);
+            gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubemapTexture);
+            mirrorCubeMesh.vertexBuffer.bind(gl);
+            mirrorCubeMesh.indexBuffer.bind(gl);
+            mirrorCubeMesh.draw(gl, mirrorShader);
+
             //draw skybox
             gl.disable(gl.CULL_FACE);
             gl.depthFunc(gl.LEQUAL);
@@ -318,10 +362,7 @@ function main() {
             skyboxMesh.indexBuffer.draw(gl);
             gl.depthFunc(gl.LESS);
             gl.enable(gl.CULL_FACE);
-
-
         });
-
     }
     
     /** 
@@ -354,6 +395,34 @@ function main() {
 
         skyboxShader.bind(gl);
         skyboxShader.setUniformMat4f(gl, "uView", skyboxview.data);
+
+        // Update lights
+        for (const shader of [phongShader, toonShader]) {
+            shader.bind(gl);
+
+            shader.setUniformVec3f(gl, "uCameraPos", cameraPos.x, cameraPos.y, cameraPos.z);
+
+            let numDirLights = 0;
+            let numPointLights = 0;
+            for (const light of scene.lights) {
+                if (light.light instanceof DirLight) {
+                    light.light.setUniforms(gl, shader, "uDirLights", numDirLights);
+                    numDirLights++;
+                }
+                else if (light.light instanceof PointLight) {
+                    light.light.setUniforms(gl, shader, "uPointLights", numPointLights);
+                    numPointLights++;
+                }
+            }
+
+            shader.setUniformInt(gl, "uNumDirLights", numDirLights);
+            shader.setUniformInt(gl, "uNumPointLights", numPointLights);
+        }
+
+        mirrorShader.bind(gl);
+        mirrorShader.setUniformMat4f(gl, "view", camera.getView().data);
+        mirrorShader.setUniformMat4f(gl, "model", Mat4.identity().data);
+        mirrorShader.setUniformVec3f(gl, "cameraPos", cameraPos.x, cameraPos.y, cameraPos.z);
     }
     // ==========
 
