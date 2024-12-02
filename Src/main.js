@@ -48,12 +48,12 @@ function main() {
     gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubemapTexture);
 
     const faces = [
-        { target: gl.TEXTURE_CUBE_MAP_POSITIVE_X, url: '../Assets/skybox/right.jpg' }, // right
-        { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_X, url: '../Assets/skybox/left.jpg' },  // left
-        { target: gl.TEXTURE_CUBE_MAP_POSITIVE_Y, url: '../Assets/skybox/top.jpg' },   // top
-        { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, url: '../Assets/skybox/bottom.jpg' }, // bottom
-        { target: gl.TEXTURE_CUBE_MAP_POSITIVE_Z, url: '../Assets/skybox/front.jpg' },  // front
-        { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, url: '../Assets/skybox/back.jpg' },   // back
+        { target: gl.TEXTURE_CUBE_MAP_POSITIVE_X, url: '/WebGL-Engine/Assets/skybox/right.jpg' }, // right
+        { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_X, url: '/WebGL-Engine/Assets/skybox/left.jpg' },  // left
+        { target: gl.TEXTURE_CUBE_MAP_POSITIVE_Y, url: '/WebGL-Engine/Assets/skybox/top.jpg' },   // top
+        { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, url: '/WebGL-Engine/Assets/skybox/bottom.jpg' }, // bottom
+        { target: gl.TEXTURE_CUBE_MAP_POSITIVE_Z, url: '/WebGL-Engine/Assets/skybox/front.jpg' },  // front
+        { target: gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, url: '/WebGL-Engine/Assets/skybox/back.jpg' },   // back
     ];
 
     let imagesLoaded = 0;
@@ -142,11 +142,11 @@ function main() {
 
     let sphere = sphereMesh.createInstance();
     sphere.material = new Material(0.2, 1.0, 2.0, 4.0);
-    sphere.texture = Texture.createFromFile(gl, "../Assets/metal_scale.png");
+    sphere.texture = Texture.createFromFile(gl, "/WebGL-Engine/Assets/metal_scale.png");
 
     let mainCube = cubeMesh.createInstance();
     mainCube.material = new Material(0.2, 1.0, 1.0, 2.0);
-    mainCube.texture = Texture.createFromFile(gl, "../Assets/ivy_seamless.png");
+    mainCube.texture = Texture.createFromFile(gl, "/WebGL-Engine/Assets/ivy_seamless.png");
 
     let lightCube = cubeMesh.createInstance();
 
