@@ -309,7 +309,7 @@ function main() {
         skyboxShader.setUniformMat4f(gl, "uView", skyboxview.data);
 
         mirrorShader.bind(gl);
-        mirrorShader.setUniformMat4f(gl, "model", Mat4.identity().data);
+        mirrorShader.setUniformMat4f(gl, "model", Mat4.translation(0.0, 2.0, 0.0).data);
         mirrorShader.setUniformMat4f(gl, "projection", camera.getProjection().data);
         mirrorShader.setUniformMat4f(gl, "view", camera.getView().data);
         mirrorShader.setUniformVec3f(gl, "cameraPos", cameraPos.x, cameraPos.y, cameraPos.z);
@@ -429,7 +429,7 @@ function main() {
 
         mirrorShader.bind(gl);
         mirrorShader.setUniformMat4f(gl, "view", camera.getView().data);
-        mirrorShader.setUniformMat4f(gl, "model", Mat4.identity().data);
+        mirrorShader.setUniformMat4f(gl, "model", Mat4.translation(0.0, 2.0, 0.0).data);
         mirrorShader.setUniformVec3f(gl, "cameraPos", cameraPos.x, cameraPos.y, cameraPos.z);
     }
     // ==========
