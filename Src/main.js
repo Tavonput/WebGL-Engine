@@ -150,6 +150,9 @@ function main() {
 
     let lightCube = cubeMesh.createInstance();
 
+    //let mirrorCube = mirrorCubeMesh.createInstance();
+    
+
     // Scene graph
     // root
     //   camera
@@ -199,6 +202,11 @@ function main() {
     // gCube.data = mainCube;
     // gCube.position = new Vec4(0.4, 0.0, 0.0);
     // gCube.scale = new Vec4(0.8, 0.8, 0.8);
+
+    //let gMirrorCube = scene.root.addChild(Node.TYPE_MESH_GEOMETRY);
+    //gMirrorCube.data = mirrorCube;
+    //gMirrorCube.position = new Vec4(-2, 0.0, 2.0);
+    //gMirrorCube.scale = new Vec4(0.8, 0.8, 0.8);
 
     let gDirLight = scene.root.addChild(Node.TYPE_LIGHT);
     gDirLight.data = new DirLight([1.0, 1.0, 0.0], [1.0, 1.0, 1.0], 0.5);
@@ -345,7 +353,7 @@ function main() {
                 lightBoxShader.setUniformVec3f(gl, "uLightColor", pointLightData[i][1][0], pointLightData[i][1][1], pointLightData[i][1][2]);
                 forwardMesh.mesh.draw(gl, lightBoxShader);
             }
-
+            
             mirrorShader.bind(gl);
             gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubemapTexture);
             mirrorCubeMesh.vertexBuffer.bind(gl);
